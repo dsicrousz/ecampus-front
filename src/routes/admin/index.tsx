@@ -13,9 +13,10 @@ import type { Operation } from '@/types/operation'
 import { env } from '@/env'
 import { cn } from '@/lib/utils'
 import { QUERY_KEYS } from '@/constants'
-import { Socket, io } from "socket.io-client";
+import { Socket } from "socket.io-client";
 import { useValue } from "@legendapp/state/react"
 import { store$, operationActions } from '@/lib/operationStore'
+import { getSocket } from '@/lib/socket'
 
 const { RangePicker } = DatePicker
 const { Title, Text } = Typography
@@ -30,7 +31,7 @@ const SOCKET_EVENTS = {
 
 export const Route = createFileRoute('/admin/')({
   loader: () => {
-    const socket = io(env.VITE_APP_BACKEND);
+    const socket = getSocket();
     return socket
   },
   component: RouteComponent,
