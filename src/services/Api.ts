@@ -2,7 +2,6 @@ import { env } from "@/env";
 import axios from "axios";
 const Api = axios.create({
     baseURL: env.VITE_APP_BACKEND,
-    withCredentials:true
   })
   Api.interceptors.request.use(config => {
     const token = window.localStorage.getItem(env.VITE_APP_TOKENSTORAGENAME);
