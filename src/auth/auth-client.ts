@@ -4,7 +4,10 @@ import { dashClient,sentinelClient } from "@better-auth/infra/client";
 
 export const authClient = createAuthClient({
   baseURL: env.VITE_AUTH_API,
-   plugins: [
+  fetchOptions: {
+    credentials: 'include',
+  },
+  plugins: [
     // ... other plugins
     dashClient(),
     sentinelClient()
