@@ -1,17 +1,11 @@
 import { env } from "@/env"
 import { createAuthClient } from "better-auth/react"
-import { dashClient,sentinelClient } from "@better-auth/infra/client";
 
 export const authClient = createAuthClient({
   baseURL: env.VITE_AUTH_API,
   fetchOptions: {
     credentials: 'include',
   },
-  plugins: [
-    // ... other plugins
-    dashClient(),
-    sentinelClient()
-  ]
 })
 
 // Infer types from the auth client and extend with custom fields

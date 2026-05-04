@@ -2,6 +2,7 @@ import {
   BookOpen,
   Bot,
   CalendarRange,
+  Megaphone,
   Settings2,
   Split,
   TicketCheck,
@@ -162,6 +163,18 @@ const data = {
           title: "ACP",
           url: "/admin/agent-comptable",
           roles: [USER_ROLE.ACP,USER_ROLE.SUPERADMIN],
+        },
+      ],
+    },
+    {
+      title: "Publicités",
+      roles: [USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN],
+      icon: Megaphone,
+      items: [
+        {
+          title: "Gestion des pubs",
+          url: "/admin/pubs",
+          roles: [USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN],
         },
       ],
     },

@@ -20,6 +20,7 @@ import { Route as AdminRestaurationsIndexRouteImport } from './routes/admin/rest
 import { Route as AdminRepreuneursIndexRouteImport } from './routes/admin/repreuneurs/index'
 import { Route as AdminRecouvrementIndexRouteImport } from './routes/admin/recouvrement/index'
 import { Route as AdminRechargeIndexRouteImport } from './routes/admin/recharge/index'
+import { Route as AdminPubsIndexRouteImport } from './routes/admin/pubs/index'
 import { Route as AdminEtudiantsIndexRouteImport } from './routes/admin/etudiants/index'
 import { Route as AdminDecadesIndexRouteImport } from './routes/admin/decades/index'
 import { Route as AdminControleursIndexRouteImport } from './routes/admin/controleurs/index'
@@ -89,6 +90,11 @@ const AdminRecouvrementIndexRoute = AdminRecouvrementIndexRouteImport.update({
 const AdminRechargeIndexRoute = AdminRechargeIndexRouteImport.update({
   id: '/recharge/',
   path: '/recharge/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPubsIndexRoute = AdminPubsIndexRouteImport.update({
+  id: '/pubs/',
+  path: '/pubs/',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminEtudiantsIndexRoute = AdminEtudiantsIndexRouteImport.update({
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/admin/controleurs/': typeof AdminControleursIndexRoute
   '/admin/decades/': typeof AdminDecadesIndexRoute
   '/admin/etudiants/': typeof AdminEtudiantsIndexRoute
+  '/admin/pubs/': typeof AdminPubsIndexRoute
   '/admin/recharge/': typeof AdminRechargeIndexRoute
   '/admin/recouvrement/': typeof AdminRecouvrementIndexRoute
   '/admin/repreuneurs/': typeof AdminRepreuneursIndexRoute
@@ -219,6 +226,7 @@ export interface FileRoutesByTo {
   '/admin/controleurs': typeof AdminControleursIndexRoute
   '/admin/decades': typeof AdminDecadesIndexRoute
   '/admin/etudiants': typeof AdminEtudiantsIndexRoute
+  '/admin/pubs': typeof AdminPubsIndexRoute
   '/admin/recharge': typeof AdminRechargeIndexRoute
   '/admin/recouvrement': typeof AdminRecouvrementIndexRoute
   '/admin/repreuneurs': typeof AdminRepreuneursIndexRoute
@@ -248,6 +256,7 @@ export interface FileRoutesById {
   '/admin/controleurs/': typeof AdminControleursIndexRoute
   '/admin/decades/': typeof AdminDecadesIndexRoute
   '/admin/etudiants/': typeof AdminEtudiantsIndexRoute
+  '/admin/pubs/': typeof AdminPubsIndexRoute
   '/admin/recharge/': typeof AdminRechargeIndexRoute
   '/admin/recouvrement/': typeof AdminRecouvrementIndexRoute
   '/admin/repreuneurs/': typeof AdminRepreuneursIndexRoute
@@ -278,6 +287,7 @@ export interface FileRouteTypes {
     | '/admin/controleurs/'
     | '/admin/decades/'
     | '/admin/etudiants/'
+    | '/admin/pubs/'
     | '/admin/recharge/'
     | '/admin/recouvrement/'
     | '/admin/repreuneurs/'
@@ -305,6 +315,7 @@ export interface FileRouteTypes {
     | '/admin/controleurs'
     | '/admin/decades'
     | '/admin/etudiants'
+    | '/admin/pubs'
     | '/admin/recharge'
     | '/admin/recouvrement'
     | '/admin/repreuneurs'
@@ -333,6 +344,7 @@ export interface FileRouteTypes {
     | '/admin/controleurs/'
     | '/admin/decades/'
     | '/admin/etudiants/'
+    | '/admin/pubs/'
     | '/admin/recharge/'
     | '/admin/recouvrement/'
     | '/admin/repreuneurs/'
@@ -428,6 +440,13 @@ declare module '@tanstack/react-router' {
       path: '/recharge'
       fullPath: '/admin/recharge/'
       preLoaderRoute: typeof AdminRechargeIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/pubs/': {
+      id: '/admin/pubs/'
+      path: '/pubs'
+      fullPath: '/admin/pubs/'
+      preLoaderRoute: typeof AdminPubsIndexRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/etudiants/': {
@@ -552,6 +571,7 @@ interface AdminRouteChildren {
   AdminControleursIndexRoute: typeof AdminControleursIndexRoute
   AdminDecadesIndexRoute: typeof AdminDecadesIndexRoute
   AdminEtudiantsIndexRoute: typeof AdminEtudiantsIndexRoute
+  AdminPubsIndexRoute: typeof AdminPubsIndexRoute
   AdminRechargeIndexRoute: typeof AdminRechargeIndexRoute
   AdminRecouvrementIndexRoute: typeof AdminRecouvrementIndexRoute
   AdminRepreuneursIndexRoute: typeof AdminRepreuneursIndexRoute
@@ -579,6 +599,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminControleursIndexRoute: AdminControleursIndexRoute,
   AdminDecadesIndexRoute: AdminDecadesIndexRoute,
   AdminEtudiantsIndexRoute: AdminEtudiantsIndexRoute,
+  AdminPubsIndexRoute: AdminPubsIndexRoute,
   AdminRechargeIndexRoute: AdminRechargeIndexRoute,
   AdminRecouvrementIndexRoute: AdminRecouvrementIndexRoute,
   AdminRepreuneursIndexRoute: AdminRepreuneursIndexRoute,
