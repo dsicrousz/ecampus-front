@@ -35,8 +35,6 @@ import type { ColumnsType } from 'antd/es/table';
 import type { Pub, CreatePubDto } from '@/types/pub';
 import { USER_ROLE } from '@/types/user.roles';
 import dayjs from 'dayjs';
-import { env } from '@/env';
-
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
