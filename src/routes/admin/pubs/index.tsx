@@ -65,7 +65,6 @@ function RouteComponent() {
     queryKey: ['pubs'], 
     queryFn: () => pubService.getAll() 
   });
-
   // Create mutation
   const { mutate: createPub, isPending: loadingCreate } = useMutation({
     mutationFn: (data: CreatePubDto) => pubService.create(data),
@@ -201,7 +200,7 @@ function RouteComponent() {
       dataIndex: 'image',
       key: 'image',
       render: (image: string) => image ? (
-        <img src={env.VITE_APP_BACKEND + '/uploads/pubs/' + image} alt="pub" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }} />
+        <img src={image} alt="pub" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }} />
       ) : <Text type="secondary">-</Text>,
     },
     {
