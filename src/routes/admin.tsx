@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/sidebar"
 import { authClient } from '@/auth/auth-client'
 
-export const Route = createFileRoute('/admin')({
+export const Route:any = createFileRoute('/admin')({
   beforeLoad: async () => {
    const session = await  authClient.getSession()
     if (!session.data?.user) {

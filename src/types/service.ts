@@ -15,7 +15,7 @@ export interface Service {
   typeService: TypeService;
   
   // Gérant (autopopulate)
-  gerant: string | {
+  gerant: {
     _id: string;
     nom: string;
     prenom: string;
@@ -33,7 +33,13 @@ export interface Service {
   }>;
   
   // Tickets acceptés (autopopulate)
-  ticketsacceptes: Ticket[] | string[];
+  ticketsacceptes: Ticket[];
+  
+  // Restaurant (autopopulate)
+  restaurant?: {
+    _id: string;
+    nom: string;
+  };
   
   // Prix par type de ticket (Map)
   prixRepreneur: Record<string, number>;

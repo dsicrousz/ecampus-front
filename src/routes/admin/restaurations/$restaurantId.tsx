@@ -54,10 +54,12 @@ dayjs.extend(isBetween);
 // @ts-ignore
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts;
 
-
-
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
+
+function isUserObject(item: string | { _id: string; nom: string; prenom: string; email: string; role?: string[] }): item is { _id: string; nom: string; prenom: string; email: string; role?: string[] } {
+  return typeof item === 'object' && '_id' in item;
+}
 
 export const Route = createFileRoute('/admin/restaurations/$restaurantId')({
   component: RouteComponent,
@@ -143,8 +145,8 @@ function RouteComponent() {
   // Handler pour ouvrir le modal de configuration
   const handleOpenConfig = () => {
     form.setFieldsValue({
-      gerant: service?.gerant?._id || service?.gerant,
-      agentsControle: service?.agentsControle?.map((agent: any) => agent._id || agent) || []
+      gerant: service?.gerant?._id,
+      agentsControle: service?.agentsControle?.filter(isUserObject).map((agent) => agent._id) || []
     });
     setConfigModalOpen(true);
   };
@@ -172,7 +174,7 @@ function RouteComponent() {
   const handleOpenPrixConfig = () => {
     // Préparer les valeurs initiales pour le formulaire
     const initialValues: Record<string, number | null> = {};
-    service?.ticketsacceptes?.forEach((ticket: Ticket) => {
+    service?.ticketsacceptes?.forEach((ticket: any) => {
       const ticketId = ticket._id;
       if (ticketId) {
         initialValues[`prix_${ticketId}`] = service?.prixRepreneur?.[ticketId] || null;
@@ -536,7 +538,7 @@ function RouteComponent() {
               width: 'auto',
               stack: [
                 { text: 'Gérant', style: 'sectionTitle' },
-                { text: service?.gerant?.name || 'Non assigné', style: 'period' },
+                { text: service?.gerant?.nom || 'Non assigné', style: 'period' },
               ],
             },
           ],
@@ -875,7 +877,7 @@ function RouteComponent() {
                         <Avatar size={48} icon={<UserOutlined />} className="bg-blue-500" />
                         <div>
                           <Text strong className="block">
-                            {service.gerant.name}
+                            {service.gerant.nom} {service.gerant.prenom}
                           </Text>
                           <Text type="secondary" className="text-sm">
                             {service.gerant.email}

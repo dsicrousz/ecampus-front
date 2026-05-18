@@ -49,13 +49,21 @@ import { PlatService } from '@/services/plat.service';
 import { MenuService } from '@/services/menu.service';
 import { QUERY_KEYS } from '@/constants';
 import type { Menu } from '@/types/menu';
-import type { User } from '@/types/user';
 import type { Ticket } from '@/types/ticket';
 import dayjs from '@/config/dayjs.config';
 
 const { Title, Text, Paragraph } = Typography;
 const { TextArea } = Input;
 
+// Type guard pour vérifier si un élément est un objet User (pas une chaîne)
+function isUserObject(item: string | { _id: string; nom: string; prenom: string; email: string; role?: string[] }): item is { _id: string; nom: string; prenom: string; email: string; role?: string[] } {
+  return typeof item === 'object' && '_id' in item;
+}
+
+// Type guard pour vérifier si le gérant est un objet
+function isGerantObject(item: string | { _id: string; nom: string; prenom: string; email: string; role?: string[] }): item is { _id: string; nom: string; prenom: string; email: string; role?: string[] } {
+  return typeof item === 'object' && '_id' in item;
+}
 
 export const Route = createFileRoute('/admin/services/$serviceId')({
   component: RouteComponent,
@@ -581,7 +589,7 @@ function RouteComponent() {
               boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)'
             }}
           >
-            {service.gerant ? (
+            {service.gerant && isGerantObject(service.gerant) ? (
               <Space orientation="vertical" style={{ width: "100%" }}>
                 <Space>
                   <Avatar 
@@ -591,7 +599,7 @@ function RouteComponent() {
                   />
                   <div>
                     <Text strong style={{ fontSize: 16 }}>
-                      {service.gerant.name}
+                      {service.gerant.nom} {service.gerant.prenom}
                     </Text>
                     <br />
                     <Text type="secondary" style={{ fontSize: 14 }}>
@@ -603,7 +611,11 @@ function RouteComponent() {
                   <div style={{ marginTop: 8 }}>
                     <Text type="secondary">Rôles: </Text>
                     <Space wrap>
-                      <Tag color="blue">{service.gerant.role}</Tag>
+                      {Array.isArray(service.gerant.role) ? service.gerant.role.map((r) => (
+                        <Tag key={r} color="blue">{r}</Tag>
+                      )) : (
+                        <Tag color="blue">{service.gerant.role}</Tag>
+                      )}
                     </Space>
                   </div>
                 )}
@@ -631,8 +643,8 @@ function RouteComponent() {
           >
             {service.agentsControle && service.agentsControle.length > 0 ? (
               <List
-                dataSource={service.agentsControle}
-                renderItem={(agent: User) => (
+                dataSource={service.agentsControle.filter(isUserObject)}
+                renderItem={(agent) => (
                   <List.Item key={agent._id}>
                     <List.Item.Meta
                       avatar={
@@ -643,7 +655,7 @@ function RouteComponent() {
                       }
                       title={
                         <Text strong>
-                          {agent.name}
+                          {agent.nom} {agent.prenom}
                         </Text>
                       }
                       description={

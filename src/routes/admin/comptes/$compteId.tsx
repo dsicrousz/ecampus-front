@@ -139,8 +139,8 @@ function RouteComponent() {
                           checkedChildren={<CheckCircleOutlined />}
                           unCheckedChildren={<CloseCircleOutlined />}
                         />
-                        <Tag color={accountData?.is_perdu ? 'error' : 'success'}>
-                          {accountData?.is_perdu ? 'PERDU' : 'EN MAIN'}
+                        <Tag color={accountData?.est_perdu ? 'error' : 'success'}>
+                          {accountData?.est_perdu ? 'PERDU' : 'EN MAIN'}
                         </Tag>
                       </Space>
                     </div>

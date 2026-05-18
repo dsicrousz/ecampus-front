@@ -17,8 +17,6 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { FaReact } from "react-icons/fa"
-
 export function TeamSwitcher({
   teams,
 }: {

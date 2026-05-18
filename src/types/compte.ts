@@ -7,4 +7,6 @@ export interface Compte {
   is_actif: boolean
   est_perdu: boolean
   etudiant?: Etudiant
+  createdAt?: string
+  updatedAt?: string
 }

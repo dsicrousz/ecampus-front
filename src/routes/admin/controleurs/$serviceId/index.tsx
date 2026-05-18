@@ -9,6 +9,11 @@ import {useMedia} from 'react-use';
 
 const { Title, Text, Paragraph } = Typography;
 
+// Type guard pour vérifier si un élément est un Ticket complet
+function isTicket(item: Ticket | string): item is Ticket {
+  return typeof item === 'object' && '_id' in item;
+}
+
 export const Route = createFileRoute('/admin/controleurs/$serviceId/')({
   component: RouteComponent,
 })
@@ -103,7 +108,7 @@ function RouteComponent() {
             {/* Tickets Grid */}
             {service?.ticketsacceptes && service.ticketsacceptes.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {service.ticketsacceptes.map((ticket:Ticket) => (
+                {service.ticketsacceptes.filter(isTicket).map((ticket) => (
                   <Link 
                     key={ticket._id} 
                     to={isMobile ? '/admin/controleurs/$serviceId/ticket/$ticketId/mobile' : '/admin/controleurs/$serviceId/ticket/$ticketId'}

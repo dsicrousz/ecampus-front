@@ -2,16 +2,10 @@ import { Document, Font, Image, Page, StyleSheet, Text, View } from "@react-pdf/
 import { createTw } from "react-pdf-tailwind";
 import QRCodePage from './QrcodePage';
 import { env } from "@/env";
+import {type  Compte } from "@/types/compte";
 
 interface RectoProps {
-  compte: {
-    etudiant: {
-      prenom: string;
-      nom: string;
-      ncs: string;
-      avatar: string;
-    };
-  };
+  compte: Compte;
 }
 
 Font.register({
@@ -52,6 +46,12 @@ const styles = StyleSheet.create({
 });
 
 function Recto({ compte }: RectoProps) {
+  // Vérifier si l'étudiant existe
+  if (!compte?.etudiant) {
+    return null;
+  }
+
+  const etudiant = compte.etudiant;
   return (
     <Document>
     <Page size={[285, 175]} style={tw('flex')} >
@@ -127,14 +127,14 @@ function Recto({ compte }: RectoProps) {
           }}>
             <Text style={{
               fontFamily:'Bebas Neue',
-              fontSize: `${compte?.etudiant.prenom?.length + compte?.etudiant.nom?.length > 20 ? '12' : '16'}px`,
+              fontSize: `${etudiant.prenom?.length + etudiant.nom?.length > 20 ? '12' : '16'}px`,
               color:'#1e293b',
               textAlign:'center',
               letterSpacing: 0.5,
               lineHeight: 1.2,
               fontWeight: 'bold'
             }}>
-              {compte?.etudiant.prenom} {compte?.etudiant.nom}
+              {etudiant.prenom} {etudiant.nom}
             </Text>
           </View>
           
@@ -162,7 +162,7 @@ function Recto({ compte }: RectoProps) {
               fontWeight: 'bold',
               letterSpacing: 0.5
             }}>
-              {compte?.etudiant.ncs}
+              {etudiant.ncs}
             </Text>
           </View>
         </View>
@@ -179,7 +179,7 @@ function Recto({ compte }: RectoProps) {
           backgroundColor: '#ffffff',
         }}>
           <Image
-            src={{uri:`${env.VITE_APP_BACKURL_ETUDIANT}/${compte?.etudiant.avatar}`}}
+            src={{uri:`${env.VITE_APP_BACKURL_ETUDIANT}/${etudiant.avatar}`}}
             style={{
               width: 65,
               height: 65,

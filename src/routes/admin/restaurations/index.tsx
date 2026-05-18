@@ -154,67 +154,57 @@ function RouteComponent() {
                 />
               </Card>
             ) : (
-              <Row gutter={[20, 20]}>
+              <Row gutter={[16, 16]}>
                 {restaurantServices.map((service) => (
                   <Col xs={24} sm={12} lg={8} xl={6} key={service._id}>
                     <Link to="/admin/restaurations/$restaurantId" params={{ restaurantId: service._id }}>
                       <Card
                         hoverable
-                        className="h-full controller-panel transition-all duration-300 hover:shadow-xl"
+                        className="controller-panel h-full transition-all duration-300"
                       >
                         {/* Status Badge */}
                         <div className="flex justify-end mb-3" onClick={(e) => handleToggleStatus(e, service._id, service.active)}>
                           <Switch
                             checked={service.active}
                             size="small"
-                            checkedChildren="ON"
-                            unCheckedChildren="OFF"
+                            checkedChildren={<span className="text-[10px]">ON</span>}
+                            unCheckedChildren={<span className="text-[10px]">OFF</span>}
                           />
                         </div>
 
-                        {/* Icon Header */}
-                        <div className="bg-slate-900 p-4 -mx-6 -mt-6 mb-4 rounded-t-2xl relative">
-                          <ShopOutlined className="text-4xl text-white" />
-                          {!service.active && (
-                            <div className="absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded-full font-semibold">
-                              Inactif
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="space-y-3">
+                        <Space direction="vertical" size="small" style={{ width: '100%' }}>
                           {/* Service Name */}
                           <div>
-                            <Title level={4} className="mb-1 text-slate-900">
+                            <Title level={5} className="mb-1 text-slate-900">
                               {service.nom}
                             </Title>
                             {service.description && (
-                              <Text className="text-sm text-slate-600 line-clamp-2">
+                              <Text type="secondary" className="text-sm line-clamp-2">
                                 {service.description}
                               </Text>
                             )}
                           </div>
 
                           {/* Restaurant Location */}
-                          {service && (
+                          {service.localisation && (
                             <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg">
                               <EnvironmentOutlined className="text-slate-500" />
                               <Text className="text-sm text-slate-700">
-                                {service.nom}
+                                {service.localisation}
                               </Text>
                             </div>
                           )}
 
                           {/* Tickets Info */}
                           <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-                            <Text className="text-xs text-slate-600 font-medium">
+                            <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-600">
                               {service.ticketsacceptes?.length || 0} ticket{(service.ticketsacceptes?.length || 0) > 1 ? 's' : ''}
                             </Text>
-                            <Text className="text-xs text-blue-600 font-semibold">
+                            <Text className="text-[11px] font-semibold uppercase tracking-wider text-blue-600">
                               Voir détails →
                             </Text>
                           </div>
-                        </div>
+                        </Space>
                       </Card>
                     </Link>
                   </Col>
