@@ -15,7 +15,6 @@ import {
   Tabs,
 } from 'antd';
 import {
-  DollarOutlined,
   WalletOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
@@ -23,10 +22,10 @@ import {
   ClockCircleOutlined,
   CheckOutlined,
   CloseOutlined,
-  BankOutlined,
   SafetyOutlined,
 } from '@ant-design/icons';
 import { createFileRoute } from '@tanstack/react-router';
+import { requireRole } from '@/lib/route-protection';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { TransfertVersementService } from '@/services/transfert-versement.service';
 import { UserService } from '@/services/user.service';
@@ -38,10 +37,12 @@ import type { TransfertVersement } from '@/types/transfert-versement';
 import { EtatTransfertColors, EtatTransfertLabels, ETAT_TRANSFERT, TYPE_TRANSFERT } from '@/types/transfert-versement';
 import type { User } from '@/types/user';
 import { formatMontant } from '@/types/operation';
+import { USER_ROLE } from '@/types/user.roles';
 
 const { Title, Text } = Typography;
 
 export const Route = createFileRoute('/admin/agent-comptable/')({
+  beforeLoad: () => requireRole([USER_ROLE.ACP, USER_ROLE.SUPERADMIN]),
   component: RouteComponent
 });
 
@@ -223,34 +224,45 @@ function RouteComponent() {
 
   return (
     <Spin spinning={isLoadingTransfertsRecus || isPendingValider || isPendingRefuser}>
+      <div className="controller-page">
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {/* Header Section */}
-        <Row gutter={[16, 16]}>
+        {/* Hero Header */}
+        <Row gutter={[24, 16]}>
           <Col xs={24} lg={16}>
-            <Card style={{ background: 'linear-gradient(to right, #f9f0ff, #efdbff)', borderColor: '#d3adf7' }}>
-              <Space direction="vertical">
-                <Title level={3} style={{ margin: 0, color: '#722ed1' }}>
-                  <SafetyOutlined /> Espace Agent Comptable
-                </Title>
-                <Text type="secondary">
-                  Validez les transferts reçus des caissiers principaux et consultez les statistiques globales
-                </Text>
-              </Space>
+            <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+              <Row gutter={[24, 16]} align="middle" wrap>
+                <Col flex="none">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                    <SafetyOutlined style={{ fontSize: 28 }} />
+                  </div>
+                </Col>
+                <Col flex="auto">
+                  <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Finance
+                  </Text>
+                  <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                    Agent Comptable
+                  </Title>
+                  <Text type="secondary">
+                    Validez les transferts reçus des caissiers principaux
+                  </Text>
+                </Col>
+              </Row>
             </Card>
           </Col>
           
           <Col xs={24} lg={8}>
-            <Card style={{ background: 'linear-gradient(to bottom right, #f6ffed, #d9f7be)', borderColor: '#b7eb8f' }}>
+            <Card className="controller-stat-card" size="small">
               <Space direction="vertical" style={{ width: '100%' }}>
                 <Space>
-                  <WalletOutlined style={{ fontSize: 24, color: '#52c41a' }} />
-                  <Text strong style={{ color: '#389e0d' }}>
+                  <WalletOutlined style={{ fontSize: 20, color: '#16a34a' }} />
+                  <Text className="text-emerald-700 font-medium">
                     Total Encaissé
                   </Text>
                 </Space>
                 <div style={{ textAlign: 'center', padding: '8px 0' }}>
                   <Text type="secondary" style={{ fontSize: 12 }}>Fonds validés</Text>
-                  <Title level={2} style={{ margin: '8px 0', color: '#52c41a' }}>
+                  <Title level={2} style={{ color: '#16a34a', margin: 0 }}>
                     {formatMontant(soldeTotal)}
                   </Title>
                 </div>
@@ -262,42 +274,42 @@ function RouteComponent() {
         {/* Statistics des transferts */}
         <Row gutter={[16, 16]}>
           <Col xs={24} sm={12} md={6}>
-            <Card hoverable style={{ borderLeft: '4px solid #fa8c16' }}>
+            <Card className="controller-stat-card" size="small">
               <Statistic
-                title="En attente"
+                title={<span className="text-orange-700 font-medium">En attente</span>}
                 value={transfertsEnAttenteRecus.length}
-                prefix={<ClockCircleOutlined style={{ color: '#fa8c16' }} />}
-                valueStyle={{ color: '#fa8c16' }}
+                prefix={<ClockCircleOutlined />}
+                valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
               />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card hoverable style={{ borderLeft: '4px solid #52c41a' }}>
+            <Card className="controller-stat-card" size="small">
               <Statistic
-                title="Validés"
+                title={<span className="text-emerald-700 font-medium">Validés</span>}
                 value={transfertsValidesRecus.length}
-                prefix={<CheckCircleOutlined style={{ color: '#52c41a' }} />}
-                valueStyle={{ color: '#52c41a' }}
+                prefix={<CheckCircleOutlined />}
+                valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
               />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card hoverable style={{ borderLeft: '4px solid #ff4d4f' }}>
+            <Card className="controller-stat-card" size="small">
               <Statistic
-                title="Refusés"
+                title={<span className="text-red-700 font-medium">Refusés</span>}
                 value={transfertsRefusesRecus.length}
-                prefix={<CloseCircleOutlined style={{ color: '#ff4d4f' }} />}
-                valueStyle={{ color: '#ff4d4f' }}
+                prefix={<CloseCircleOutlined />}
+                valueStyle={{ color: '#dc2626', fontSize: '1.75rem', fontWeight: 800 }}
               />
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
-            <Card hoverable style={{ borderLeft: '4px solid #1890ff' }}>
+            <Card className="controller-stat-card" size="small">
               <Statistic
-                title="Montant total reçu"
+                title={<span className="text-blue-700 font-medium">Montant total reçu</span>}
                 value={soldeTotal}
                 formatter={(value) => formatMontant(Number(value))}
-                valueStyle={{ color: '#1890ff' }}
+                valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
               />
             </Card>
           </Col>
@@ -305,29 +317,22 @@ function RouteComponent() {
 
         {/* Vue globale des flux */}
         <Card
-          title={
-            <Space>
-              <BankOutlined style={{ fontSize: 20, color: '#722ed1' }} />
-              <Text strong style={{ color: '#722ed1' }}>Vue Globale des Flux Financiers</Text>
-            </Space>
-          }
+          className="controller-panel"
+          title={<span className="text-slate-900 font-semibold">Vue Globale des Flux Financiers</span>}
           loading={isLoadingAllTransferts}
         >
           <Row gutter={[16, 16]}>
             <Col xs={24} md={8}>
               <Card 
+                className="controller-panel"
                 size="small" 
-                style={{ 
-                  background: 'linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%)',
-                  borderColor: '#ffd591',
-                  textAlign: 'center'
-                }}
+                style={{ textAlign: 'center' }}
               >
                 <Statistic
-                  title="Vendeurs → Recouvreurs"
+                  title={<span className="text-orange-700 font-medium">Vendeurs → Recouvreurs</span>}
                   value={totalTransfertsVendeurRecouvreur}
                   formatter={(value) => formatMontant(Number(value))}
-                  valueStyle={{ color: '#fa8c16' }}
+                  valueStyle={{ color: '#f97316', fontSize: '1.5rem', fontWeight: 700 }}
                 />
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {allTransferts?.filter(t => t.typeTransfert === TYPE_TRANSFERT.VENDEUR_VERS_RECOUVREUR && t.etat === ETAT_TRANSFERT.VALIDE).length || 0} transferts validés
@@ -336,18 +341,15 @@ function RouteComponent() {
             </Col>
             <Col xs={24} md={8}>
               <Card 
+                className="controller-panel"
                 size="small"
-                style={{ 
-                  background: 'linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%)',
-                  borderColor: '#91d5ff',
-                  textAlign: 'center'
-                }}
+                style={{ textAlign: 'center' }}
               >
                 <Statistic
-                  title="Recouvreurs → Caissiers"
+                  title={<span className="text-blue-700 font-medium">Recouvreurs → Caissiers</span>}
                   value={totalTransfertsRecouvreurCaissier}
                   formatter={(value) => formatMontant(Number(value))}
-                  valueStyle={{ color: '#1890ff' }}
+                  valueStyle={{ color: '#0ea5e9', fontSize: '1.5rem', fontWeight: 700 }}
                 />
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {allTransferts?.filter(t => t.typeTransfert === TYPE_TRANSFERT.RECOUVREUR_VERS_CAISSIER_PRINCIPAL && t.etat === ETAT_TRANSFERT.VALIDE).length || 0} transferts validés
@@ -356,18 +358,15 @@ function RouteComponent() {
             </Col>
             <Col xs={24} md={8}>
               <Card 
+                className="controller-panel"
                 size="small"
-                style={{ 
-                  background: 'linear-gradient(135deg, #f9f0ff 0%, #efdbff 100%)',
-                  borderColor: '#d3adf7',
-                  textAlign: 'center'
-                }}
+                style={{ textAlign: 'center' }}
               >
                 <Statistic
-                  title="Caissiers → Agent Comptable"
+                  title={<span className="text-purple-700 font-medium">Caissiers → Agent Comptable</span>}
                   value={totalTransfertsCaissierAgent}
                   formatter={(value) => formatMontant(Number(value))}
-                  valueStyle={{ color: '#722ed1' }}
+                  valueStyle={{ color: '#9333ea', fontSize: '1.5rem', fontWeight: 700 }}
                 />
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {allTransferts?.filter(t => t.typeTransfert === TYPE_TRANSFERT.CAISSIER_PRINCIPAL_VERS_AGENT_COMPTABLE && t.etat === ETAT_TRANSFERT.VALIDE).length || 0} transferts validés
@@ -381,16 +380,13 @@ function RouteComponent() {
         <Row gutter={[16, 16]}>
           <Col xs={24} lg={8}>
             <Card
-              title={
-                <Space>
-                  <UserOutlined style={{ fontSize: 18, color: '#fa8c16' }} />
-                  <Text strong style={{ color: '#fa8c16' }}>Vendeurs</Text>
-                </Space>
-              }
+              className="controller-panel"
+              title={<span className="text-orange-700 font-semibold">Vendeurs</span>}
               loading={isLoadingVendeurs || isLoadingSoldes}
               size="small"
             >
               <Table
+                className="controller-table"
                 columns={[
                   {
                     title: 'Nom',
@@ -404,7 +400,7 @@ function RouteComponent() {
                     render: (_: any, record: User) => {
                       const solde = soldesVendeurs?.find((s: any) => s.vendeur_id === record._id || s.vendeur_id?._id === record._id);
                       return (
-                        <Text strong style={{ color: (solde?.solde || 0) > 0 ? '#52c41a' : '#8c8c8c' }}>
+                        <Text strong style={{ color: (solde?.solde || 0) > 0 ? '#16a34a' : '#8c8c8c' }}>
                           {formatMontant(solde?.solde || 0)}
                         </Text>
                       );
@@ -420,16 +416,13 @@ function RouteComponent() {
           </Col>
           <Col xs={24} lg={8}>
             <Card
-              title={
-                <Space>
-                  <UserOutlined style={{ fontSize: 18, color: '#1890ff' }} />
-                  <Text strong style={{ color: '#1890ff' }}>Recouvreurs</Text>
-                </Space>
-              }
+              className="controller-panel"
+              title={<span className="text-blue-700 font-semibold">Recouvreurs</span>}
               loading={isLoadingRecouvreurs || isLoadingAllTransferts}
               size="small"
             >
               <Table
+                className="controller-table"
                 columns={[
                   {
                     title: 'Nom',
@@ -447,7 +440,7 @@ function RouteComponent() {
                         typeof t.destinataire === 'object' && 
                         t.destinataire._id === record._id
                       ).reduce((acc, t) => acc + t.montant, 0) || 0;
-                      return <Text style={{ color: '#52c41a' }}>{formatMontant(totalRecu)}</Text>;
+                      return <Text style={{ color: '#16a34a' }}>{formatMontant(totalRecu)}</Text>;
                     },
                   },
                 ]}
@@ -460,16 +453,13 @@ function RouteComponent() {
           </Col>
           <Col xs={24} lg={8}>
             <Card
-              title={
-                <Space>
-                  <BankOutlined style={{ fontSize: 18, color: '#722ed1' }} />
-                  <Text strong style={{ color: '#722ed1' }}>Caissiers Principaux</Text>
-                </Space>
-              }
+              className="controller-panel"
+              title={<span className="text-purple-700 font-semibold">Caissiers Principaux</span>}
               loading={isLoadingCaissiers || isLoadingAllTransferts}
               size="small"
             >
               <Table
+                className="controller-table"
                 columns={[
                   {
                     title: 'Nom',
@@ -487,7 +477,7 @@ function RouteComponent() {
                         typeof t.destinataire === 'object' && 
                         t.destinataire._id === record._id
                       ).reduce((acc, t) => acc + t.montant, 0) || 0;
-                      return <Text style={{ color: '#52c41a' }}>{formatMontant(totalRecu)}</Text>;
+                      return <Text style={{ color: '#16a34a' }}>{formatMontant(totalRecu)}</Text>;
                     },
                   },
                 ]}
@@ -502,12 +492,8 @@ function RouteComponent() {
 
         {/* Transferts reçus des caissiers principaux */}
         <Card
-          title={
-            <Space>
-              <DollarOutlined style={{ fontSize: 20, color: '#722ed1' }} />
-              <Text strong style={{ color: '#722ed1' }}>Transferts reçus des caissiers principaux</Text>
-            </Space>
-          }
+          className="controller-panel"
+          title={<span className="text-slate-900 font-semibold">Transferts reçus des caissiers principaux</span>}
         >
           <Tabs
             activeKey={activeTab}
@@ -523,6 +509,7 @@ function RouteComponent() {
                 ),
                 children: (
                   <Table
+                    className="controller-table"
                     columns={columnsTransfertsRecus}
                     dataSource={transfertsEnAttenteRecus}
                     rowKey="_id"
@@ -541,6 +528,7 @@ function RouteComponent() {
                 ),
                 children: (
                   <Table
+                    className="controller-table"
                     columns={columnsTransfertsRecus.filter(c => c.key !== 'actions')}
                     dataSource={transfertsValidesRecus}
                     rowKey="_id"
@@ -559,6 +547,7 @@ function RouteComponent() {
                 ),
                 children: (
                   <Table
+                    className="controller-table"
                     columns={columnsTransfertsRecus.filter(c => c.key !== 'actions')}
                     dataSource={transfertsRefusesRecus}
                     rowKey="_id"
@@ -571,6 +560,7 @@ function RouteComponent() {
           />
         </Card>
       </Space>
+      </div>
     </Spin>
   );
 }

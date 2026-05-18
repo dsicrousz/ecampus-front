@@ -54,7 +54,7 @@ const OperationNotification = memo(({ operation }: { operation: Operation }) => 
       className={cn(
         "relative mx-auto min-h-fit w-full max-w-[400px] cursor-pointer overflow-hidden rounded-xl p-4",
         "transition-all duration-300 ease-in-out hover:scale-[102%] hover:shadow-lg",
-        "bg-linear-to-br from-white to-blue-50 border border-blue-100",
+        "bg-white border border-slate-200",
         "dark:from-gray-800 dark:to-gray-900 dark:border-gray-700"
       )}
     >
@@ -276,15 +276,19 @@ function RouteComponent() {
   }
 
   return (
+    <div className="controller-page">
       <Spin spinning={isLoading}>
         <Space orientation="vertical" size="large" style={{ width: '100%' }}>
-          {/* Header */}
-          <Card style={{ background: 'linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%)' }}>
+          {/* Hero Header */}
+          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
             <Space orientation="vertical" size="middle" style={{ width: '100%' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
                 <div>
-                  <Title level={3} style={{ margin: 0, color: '#0050b3' }}>
-                    📊 Tableau de Bord - Opérations
+                  <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Tableau de bord
+                  </Text>
+                  <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                    Opérations
                   </Title>
                   <Text type="secondary">
                     Vue d'ensemble des transactions et statistiques
@@ -312,7 +316,7 @@ function RouteComponent() {
 
               {/* Filtres rapides */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <Text strong style={{ color: '#595959' }}>
+                <Text strong style={{ color: '#475569' }}>
                   Filtres rapides:
                 </Text>
                 <Space size="small">
@@ -352,12 +356,13 @@ function RouteComponent() {
           {/* Statistiques principales */}
           <Row gutter={[16, 16]}>
             <Col xs={24} sm={12} lg={6}>
-              <Card>
+              <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title="Solde Global"
+                  title={<span className="text-blue-700 font-medium">Solde Global</span>}
                   value={soldeGlobal}
                   formatter={(value) => formatMontant(value as number)}
                   prefix={<DollarOutlined />}
+                  valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
                 />
                 <Text type="secondary" style={{ fontSize: '12px' }}>
                   {comptes?.length || 0} comptes
@@ -366,11 +371,12 @@ function RouteComponent() {
             </Col>
 
             <Col xs={24} sm={12} lg={6}>
-              <Card>
+              <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title="Total Recharges"
+                  title={<span className="text-emerald-700 font-medium">Total Recharges</span>}
                   value={recharges.length}
                   prefix={<ArrowUpOutlined />}
+                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
                 />
                 <Text type="secondary" style={{ fontSize: '12px' }}>
                   {formatMontant(recharges.reduce((total: number, op: any) => total + (op.montant || 0), 0))}
@@ -379,11 +385,12 @@ function RouteComponent() {
             </Col>
 
             <Col xs={24} sm={12} lg={6}>
-              <Card>
+              <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title="Total Utilisations"
+                  title={<span className="text-orange-700 font-medium">Total Utilisations</span>}
                   value={utilisations.length}
                   prefix={<ArrowDownOutlined />}
+                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
                 />
                 <Text type="secondary" style={{ fontSize: '12px' }}>
                   {formatMontant(utilisations.reduce((total: number, op: any) => total + (op.montant || 0), 0))}
@@ -392,11 +399,12 @@ function RouteComponent() {
             </Col>
 
             <Col xs={24} sm={12} lg={6}>
-              <Card>
+              <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title="Total Transferts"
+                  title={<span className="text-purple-700 font-medium">Total Transferts</span>}
                   value={transferts.length}
                   prefix={<SwapOutlined />}
+                  valueStyle={{ color: '#9333ea', fontSize: '1.75rem', fontWeight: 800 }}
                 />
                 <Text type="secondary" style={{ fontSize: '12px' }}>
                   {formatMontant(transferts.reduce((total: number, op: any) => total + (op.montant || 0), 0))}
@@ -418,10 +426,10 @@ function RouteComponent() {
                 return (
                   <Card 
                     key={serviceData.serviceId}
-                    className="shadow-lg border-0 overflow-hidden"
+                    className="controller-panel shadow-lg overflow-hidden"
                     styles={{ 
                       header: { 
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        background: '#0f172a',
                         borderBottom: 'none'
                       }
                     }}
@@ -430,13 +438,11 @@ function RouteComponent() {
                         <div className="flex items-center gap-4">
                           <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
                             <span className="text-3xl">
-                              {serviceData.serviceType === 'restaurant' ? '🍴' : 
-                               serviceData.serviceType === 'transport' ? '🚌' : 
-                               serviceData.serviceType === 'hebergement' ? '🏠' : '🏫'}
+                              🏢
                             </span>
                           </div>
                           <div>
-                            <Text strong className="text-xl text-white block">{serviceData.serviceNom}</Text>
+                            <div className="text-xl text-white">{serviceData.serviceNom}</div>
                             <div className="flex items-center gap-2 mt-1">
                               <Tag color="blue" className="m-0">{serviceData.totalOperations} opérations</Tag>
                               <Tag color="purple" className="m-0">{serviceData.tickets.length} ticket(s)</Tag>
@@ -462,13 +468,13 @@ function RouteComponent() {
                             <Card
                               className={cn(
                                 "h-full transition-all duration-300 hover:shadow-xl hover:-translate-y-1",
-                                "bg-linear-to-br from-white to-gray-50 border border-gray-100"
+                                "bg-white border border-slate-200"
                               )}
                               styles={{ body: { padding: '16px' } }}
                             >
                               {/* Header du ticket */}
                               <div className="flex items-center gap-3 mb-4">
-                                <div className="bg-linear-to-br from-green-400 to-green-600 p-2.5 rounded-xl shadow-md">
+                                <div className="bg-emerald-600 p-2.5 rounded-xl shadow-md">
                                   <FaTicketAlt className="text-white text-lg" />
                                 </div>
                                 <div className="flex-1 min-w-0">
@@ -497,14 +503,11 @@ function RouteComponent() {
                                 <Progress 
                                   percent={percentage} 
                                   size="small" 
-                                  strokeColor={{
-                                    '0%': '#667eea',
-                                    '100%': '#764ba2',
-                                  }}
+                                  strokeColor="#0ea5e9"
                                   showInfo={false}
                                 />
 
-                                <div className="bg-linear-to-r from-green-50 to-emerald-50 rounded-lg p-3 border border-green-100">
+                                <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200">
                                   <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-2">
                                       <FaMoneyBillWave className="text-green-500" />
@@ -525,7 +528,7 @@ function RouteComponent() {
                                         {ticketData.operations.slice(0, 5).map((op: Operation) => (
                                           <div 
                                             key={op._id}
-                                            className="flex items-center gap-2 p-2 mb-1 rounded-lg bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-100"
+                                            className="flex items-center gap-2 p-2 mb-1 rounded-lg bg-slate-50 border border-slate-200"
                                           >
                                             <Avatar 
                                               src={op.compte?.etudiant?.avatar ? `${env.VITE_APP_BACKURL_ETUDIANT}/${op.compte.etudiant.avatar}` : undefined}
@@ -573,5 +576,6 @@ function RouteComponent() {
           )}
         </Space>
       </Spin>
+    </div>
   )
 }

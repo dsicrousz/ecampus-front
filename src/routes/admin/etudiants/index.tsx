@@ -1,18 +1,21 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useQuery } from "@tanstack/react-query"
-import { useState, useMemo } from "react"
-import { Spin, Table, Avatar, Button, Input, Space, Card, Typography } from "antd"
-import { UserOutlined, SearchOutlined, EyeOutlined } from "@ant-design/icons"
-import { EtudiantService } from '@/services/etudiant.service'
-import { env } from '@/env'
+import { requireRole } from '@/lib/route-protection';
+import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo } from "react";
+import { Spin, Table, Input, Space, Card, Avatar, Typography, Row, Col, Statistic, Button } from "antd";
+import { SearchOutlined, UserOutlined } from "@ant-design/icons";
+import { EtudiantService } from "@/services/etudiant.service";
+import type { Etudiant } from "@/types/etudiant";
+import type { ColumnsType } from "antd/es/table";
+import { env } from "@/env";
 import dayjs from '@/config/dayjs.config'
-import type { ColumnsType } from 'antd/es/table'
-import type { Etudiant } from '@/types/etudiant'
+import { USER_ROLE } from '@/types/user.roles'
 
-const { Title } = Typography
+const { Title, Text } = Typography;
 const PAGE_SIZE = 15
 
 export const Route = createFileRoute('/admin/etudiants/')({
+  beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -46,6 +49,8 @@ function RouteComponent() {
     const end = start + PAGE_SIZE
     return filteredEtudiants.slice(start, end)
   }, [filteredEtudiants, page])
+
+  const totalPages = Math.ceil(filteredEtudiants.length / PAGE_SIZE)
 
   const columns: ColumnsType<Etudiant> = [
     {
@@ -99,7 +104,7 @@ function RouteComponent() {
         <Space>
           <Button 
             type="primary" 
-            icon={<EyeOutlined />} 
+            icon={<SearchOutlined />} 
             onClick={() => navigate({ to: `/admin/etudiants/${record._id}` })}
           >
             Voir
@@ -110,48 +115,101 @@ function RouteComponent() {
   ]
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <Card>
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Title level={3} style={{ margin: 0 }}>
-            📚 Gestion des Étudiants
-          </Title>
-          
-          <Input
-            placeholder="Rechercher par nom, prénom ou N° sociale..."
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => {
-              setSearchText(e.target.value)
-              setPage(1) // Réinitialiser à la page 1 lors de la recherche
-            }}
-            allowClear
-            size="large"
-          />
-        </Space>
-      </Card>
+    <div className="controller-page">
+      <Spin spinning={isLoading}>
+        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+          {/* Hero Header */}
+          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+            <Row gutter={[24, 16]} align="middle" wrap>
+              <Col flex="none">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                  <UserOutlined style={{ fontSize: 28 }} />
+                </div>
+              </Col>
+              <Col flex="auto">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Utilisateurs
+                </Text>
+                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                  Étudiants
+                </Title>
+                <Text type="secondary">
+                  Gérez les étudiants et leurs informations
+                </Text>
+              </Col>
+              <Col flex="none">
+                <Input
+                  placeholder="Rechercher..."
+                  prefix={<SearchOutlined />}
+                  value={searchText}
+                  onChange={(e) => {
+                    setSearchText(e.target.value);
+                    setPage(1);
+                  }}
+                  allowClear
+                  style={{ width: 300 }}
+                />
+              </Col>
+            </Row>
+          </Card>
 
-      <Card>
-        <Spin spinning={isLoading}>
-          <Table
-            columns={columns}
-            dataSource={paginatedEtudiants}
-            rowKey="_id"
-            pagination={{
-              current: page,
-              pageSize: PAGE_SIZE,
-              total: filteredEtudiants.length,
-              onChange: (p) => setPage(p),
-              showSizeChanger: false,
-              showQuickJumper: true,
-              showTotal: (total, range) => 
-                `${range[0]}-${range[1]} sur ${total} étudiant${total > 1 ? 's' : ''}`,
-            }}
-            loading={isLoading}
-            scroll={{ x: 'max-content' }}
-          />
-        </Spin>
-      </Card>
-    </Space>
+          {/* Statistiques */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-blue-700 font-medium">Total Étudiants</span>}
+                  value={etudiants?.length || 0}
+                  prefix={<UserOutlined />}
+                  valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-emerald-700 font-medium">Filtrés</span>}
+                  value={filteredEtudiants.length}
+                  prefix={<SearchOutlined />}
+                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-orange-700 font-medium">Page actuelle</span>}
+                  value={page}
+                  suffix={`/ ${totalPages}`}
+                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Table */}
+          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Étudiants</span>}>
+            <Table
+              className="controller-table"
+              columns={columns}
+              dataSource={paginatedEtudiants}
+              rowKey="_id"
+              pagination={{
+                current: page,
+                pageSize: PAGE_SIZE,
+                total: filteredEtudiants.length,
+                onChange: (p) => setPage(p),
+                showSizeChanger: false,
+                showQuickJumper: true,
+                showTotal: (total, range) => 
+                  `${range[0]}-${range[1]} sur ${total} étudiant${total > 1 ? 's' : ''}`,
+              }}
+              loading={isLoading}
+              scroll={{ x: 'max-content' }}
+            />
+          </Card>
+        </Space>
+      </Spin>
+    </div>
   )
 }

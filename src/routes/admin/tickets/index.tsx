@@ -1,5 +1,6 @@
-import { createFileRoute, redirect } from '@tanstack/react-router';
-import { Card, Table, Button, Input, Space, Tag, Popconfirm, message, Spin, Drawer, Form, InputNumber, Switch, Typography } from 'antd';
+import { createFileRoute } from '@tanstack/react-router';
+import { requireRole } from '@/lib/route-protection';
+import { Card, Table, Button, Input, Space, Tag, Popconfirm, message, Spin, Drawer, Form, InputNumber, Switch, Typography, Row, Col, Statistic } from 'antd';
 import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -7,17 +8,11 @@ import { TicketService } from '@/services/ticket.service';
 import type { Ticket, TicketFormValues } from '@/types/ticket';
 import type { ColumnsType } from 'antd/es/table';
 import { USER_ROLE } from '@/types/user.roles';
-import { getSession } from '@/auth/auth-client';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export const Route = createFileRoute('/admin/tickets/')({
-  beforeLoad: async () => {
-    const session = await getSession();
-    if (session.data?.user?.role !== USER_ROLE.SUPERADMIN) {
-      throw redirect({ to: '/admin/unauthorized' });
-    }
-  },
+  beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -200,47 +195,100 @@ function RouteComponent() {
     },
   ];
 
+  const activeTickets = filteredTickets.filter(t => t.active).length;
+  const inactiveTickets = filteredTickets.filter(t => !t.active).length;
+
   return (
-    <>
+    <div className="controller-page">
       <Spin spinning={isLoadingTickets || loadingCreate || loadingUpdate}>
-        <Card
-          title={
-            <Space>
-              <span style={{ fontSize: '20px' }}>🎫</span>
-              <Title level={3} style={{ margin: 0, color: '#1890ff' }}>Gestion des Tickets</Title>
-            </Space>
-          }
-          extra={
-            <Space>
-              <Input
-                placeholder="Rechercher un ticket..."
-                prefix={<SearchOutlined />}
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-                allowClear
-                style={{ width: 250 }}
-              />
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={handleOpenCreate}
-              >
-                Nouveau Ticket
-              </Button>
-            </Space>
-          }
-        >
-          <Table
-            columns={columns}
-            dataSource={filteredTickets}
-            rowKey="_id"
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showTotal: (total) => `Total: ${total} ticket(s)`,
-            }}
-          />
-        </Card>
+        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+          {/* Hero Header */}
+          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+            <Row gutter={[24, 16]} align="middle" wrap>
+              <Col flex="none">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                  <span style={{ fontSize: 28 }}>🎫</span>
+                </div>
+              </Col>
+              <Col flex="auto">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Paiement
+                </Text>
+                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                  Tickets
+                </Title>
+                <Text type="secondary">
+                  Gérez les tickets de paiement
+                </Text>
+              </Col>
+              <Col flex="none">
+                <Space>
+                  <Input
+                    placeholder="Rechercher..."
+                    prefix={<SearchOutlined />}
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    allowClear
+                    style={{ width: 250 }}
+                  />
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={handleOpenCreate}
+                  >
+                    Nouveau
+                  </Button>
+                </Space>
+              </Col>
+            </Row>
+          </Card>
+
+          {/* Statistiques */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-blue-700 font-medium">Total Tickets</span>}
+                  value={filteredTickets.length}
+                  valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-emerald-700 font-medium">Actifs</span>}
+                  value={activeTickets}
+                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-orange-700 font-medium">Inactifs</span>}
+                  value={inactiveTickets}
+                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Table */}
+          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Tickets</span>}>
+            <Table
+              className="controller-table"
+              columns={columns}
+              dataSource={filteredTickets}
+              rowKey="_id"
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `Total: ${total} ticket(s)`,
+              }}
+            />
+          </Card>
+        </Space>
       </Spin>
 
       <Drawer
@@ -318,6 +366,6 @@ function RouteComponent() {
           </Form.Item>
         </Form>
       </Drawer>
-    </>
+    </div>
   );
 }

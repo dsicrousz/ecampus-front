@@ -1,4 +1,5 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { requireRole } from '@/lib/route-protection';
 import { 
   Card, 
   Table, 
@@ -37,7 +38,7 @@ import { OperationService } from '@/services/operation.service';
 import { VendeurService } from '@/services/vendeurservice';
 import { TransfertVersementService } from '@/services/transfert-versement.service';
 import { UserService } from '@/services/user.service';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { validate } from 'uuid';
 import pdfMake from 'pdfmake/build/pdfmake';
 import dayjs from '@/config/dayjs.config';
@@ -54,6 +55,7 @@ import { env } from '@/env';
 import type { Dayjs } from 'dayjs';
 import { useSymbologyScanner } from '@use-symbology-scanner/react';
 import { USER_ROLE } from '@/types/user.roles';
+import { QUERY_KEYS, queryKeys } from '@/constants';
 
 (pdfMake as any).vfs = font;
 
@@ -72,35 +74,63 @@ interface RechargeData {
 }
 
 export const Route = createFileRoute('/admin/recharge/')({
+  beforeLoad: () => requireRole([USER_ROLE.VENDEUR, USER_ROLE.SUPERADMIN]),
   component: RouteComponent
 });
 
 function RouteComponent() {
+  const navigate = useNavigate();
   const { data: session } = authClient.useSession();
   const [openedRecharge, setOpenedRecharge] = useState(false);
   const [montantRecharge, setMontantRecharge] = useState<number>(0);
-  const [___, setSearchTextO] = useState('');
-  const [____, setSearchedColumnO] = useState('');
-  const searchInputO = useRef<any>(null);
-  const [timeFilterO, setTimeFilterO] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
+  const [, setSearchText] = useState('');
+  const [, setSearchedColumn] = useState('');
+  const searchInput = useRef<any>(null);
+  const [timeFilter, setTimeFilter] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
   const [qr, setQr] = useState<string>();
   const [openedTransfert, setOpenedTransfert] = useState(false);
   const [montantTransfert, setMontantTransfert] = useState<number>(0);
   const [selectedRecouvreur, setSelectedRecouvreur] = useState<string>();
   const [noteTransfert, setNoteTransfert] = useState<string>('');
+
+  // Responsive routing: redirect to mobile on tablet and smaller screens
+  useEffect(() => {
+    const checkScreenSize = () => {
+      if (window.innerWidth < 992) {
+        navigate({ to: '/admin/recharge/mobile' });
+      }
+    };
+
+    // Check initial screen size
+    checkScreenSize();
+
+    // Add resize listener
+    const handleResize = () => {
+      checkScreenSize();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [navigate]);
   
   const qc = useQueryClient();
-  const vendeurService = new VendeurService();
-  const compteService = new CompteService();
-  const operationService = new OperationService();
-  const transfertVersementService = new TransfertVersementService();
-  const userService = new UserService();
+  const vendeurService = useMemo(() => new VendeurService(), []);
+  const compteService = useMemo(() => new CompteService(), []);
+  const operationService = useMemo(() => new OperationService(), []);
+  const transfertVersementService = useMemo(() => new TransfertVersementService(), []);
+  const userService = useMemo(() => new UserService(), []);
   
   const operationKey = ['operations', session?.user?.id];
   const soldeVendeurKey = ['solde', session?.user?.id];
   const transfertsKey = ['transferts-vendeur', session?.user?.id];
   const recouvreursKey = ['recouvreurs'];
-  const key = ['compte_depot'];
+  const compteKey = qr
+    ? queryKeys.compteByCode(qr)
+    : ([QUERY_KEYS.COMPTES, 'code', 'pending'] as const);
 
 
   const { data: allOperations, isLoading: isLoadingOperations } = useQuery<Operation[]>({
@@ -110,9 +140,9 @@ function RouteComponent() {
   });
 
   const operationsData = allOperations?.filter((op: Operation) => {
-    if (!timeFilterO) return true;
+    if (!timeFilter) return true;
     const opDate = dayjs(op.createdAt);
-    return opDate.isAfter(timeFilterO[0]) && opDate.isBefore(timeFilterO[1]);
+    return opDate.isAfter(timeFilter[0]) && opDate.isBefore(timeFilter[1]);
   }) || [];
 
   const { data: soldeData, isLoading: isLoadingSolde } = useQuery<SoldeData>({
@@ -122,7 +152,7 @@ function RouteComponent() {
   });
 
   const { data, isLoading } = useQuery<Compte>({
-    queryKey: key,
+    queryKey: compteKey,
     queryFn: () => compteService.byCode(qr!),
     enabled: qr !== undefined,
   });
@@ -160,7 +190,9 @@ function RouteComponent() {
       message.success('Recharge effectuée avec succès');
       setOpenedRecharge(false);
       setMontantRecharge(0);
-      qc.invalidateQueries({ queryKey: key });
+      if (qr) {
+        qc.invalidateQueries({ queryKey: queryKeys.compteByCode(qr) });
+      }
       qc.invalidateQueries({ queryKey: soldeVendeurKey });
       qc.invalidateQueries({ queryKey: operationKey });
     },
@@ -316,20 +348,20 @@ function RouteComponent() {
     dataIndex: string,
   ) => {
     confirm();
-    setSearchTextO(selectedKeys[0]);
-    setSearchedColumnO(dataIndex);
+    setSearchText(selectedKeys[0]);
+    setSearchedColumn(dataIndex);
   };
   
   const handleResetO = (clearFilters: () => void) => {
     clearFilters();
-    setSearchTextO('');
+    setSearchText('');
   };
   
   const getColumnSearchPropsO = (dataIndex: string) => ({
     filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters, close }: any) => (
       <div style={{ padding: 8 }} onKeyDown={(e) => e.stopPropagation()}>
         <Input
-          ref={searchInputO}
+          ref={searchInput}
           placeholder={`Rechercher ${dataIndex}`}
           value={selectedKeys[0]}
           onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
@@ -421,72 +453,68 @@ function RouteComponent() {
   ];
 
   return (
+    <div className="controller-page">
     <Spin spinning={isLoading || isLoadingSolde || isLoadingOperations || isPendingRecharge}>
       <Space orientation="vertical" size="large" style={{ width: '100%' }}>
-        {/* Header Section */}
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={16}>
-            <Card style={{ background: 'linear-gradient(to right, #f9f0ff, #e6f7ff)', borderColor: '#d3adf7' }}>
-              <Space direction="vertical">
-                <Title level={3} style={{ margin: 0, color: '#722ed1' }}>
-                  💰 Espace Vendeur - Recharge de Comptes
-                </Title>
-                <Text type="secondary">
-                  Scannez le QR code d'un étudiant pour effectuer une recharge sur son compte
+        {/* Hero Section */}
+        <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+          <Row gutter={[24, 16]} align="middle" wrap>
+            <Col flex="none">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <WalletOutlined style={{ fontSize: 28 }} />
+              </div>
+            </Col>
+            <Col flex="auto">
+              <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Espace vendeur
+              </Text>
+              <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                Recharge de comptes
+              </Title>
+              <Text type="secondary">
+                Scannez le QR code d'un étudiant pour effectuer une recharge sur son compte
+              </Text>
+            </Col>
+            <Col flex="none">
+              <div className="min-w-[220px] rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Mon solde vendeur
                 </Text>
-              </Space>
-            </Card>
-          </Col>
-          
-          <Col xs={24} lg={8}>
-            <Card style={{ background: 'linear-gradient(to bottom right, #e6f7ff, #bae7ff)', borderColor: '#91d5ff' }}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                <Space>
-                  <WalletOutlined style={{ fontSize: 24, color: '#1890ff' }} />
-                  <Text strong style={{ color: '#096dd9' }}>
-                    Mon Solde Vendeur
-                  </Text>
-                </Space>
-                <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                  <Text type="secondary" style={{ fontSize: 12 }}>Solde disponible</Text>
-                  <Title level={2} style={{ margin: '8px 0', color: '#1890ff' }}>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="text-3xl font-black tracking-tight text-slate-900">
                     {formatMontant(soldeData?.solde || 0)}
-                  </Title>
+                  </span>
                 </div>
-              </Space>
-            </Card>
-          </Col>
-        </Row>
+              </div>
+            </Col>
+          </Row>
+        </Card>
 
         {/* Main Content */}
         <Row gutter={[16, 16]}>
           {/* QR Scanner Section */}
           <Col xs={24} md={12} lg={8}>
-            <Card 
+            <Card
+              className="controller-panel"
               title={
                 <Space>
-                  <QrcodeOutlined style={{ fontSize: 20, color: '#722ed1' }} />
-                  <Text strong style={{ color: '#722ed1' }}>Scanner QR Code</Text>
+                  <QrcodeOutlined style={{ fontSize: 20, color: '#0f172a' }} />
+                  <Text strong style={{ color: '#0f172a' }}>Scanner QR Code</Text>
                 </Space>
               }
               style={{ height: '100%', minHeight: 350 }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 250 }}>
-                <div style={{ textAlign: 'center', padding: '0 16px' }}>
-                  <img 
-                    src="/qrcode.gif" 
-                    alt="QR Scanner" 
-                    style={{ 
-                      maxHeight: 200, 
-                      maxWidth: '100%',
-                      marginBottom: 16,
-                      objectFit: 'contain'
-                    }} 
-                  />
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                    Positionnez le QR code de l'étudiant devant la caméra
-                  </Text>
-                </div>
+              <div className="controller-scan-frame">
+                <img
+                  src="/qrcode.gif"
+                  alt="QR Scanner"
+                  className="controller-scan-image"
+                />
+              </div>
+              <div className="mt-4 text-center">
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Positionnez le QR code de l'étudiant devant la caméra
+                </Text>
               </div>
             </Card>
           </Col>
@@ -494,55 +522,32 @@ function RouteComponent() {
           {/* Student Info Section */}
           <Col xs={24} md={12} lg={16}>
             {data ? (
-              <Card 
-                style={{ 
-                  height: '100%', 
-                  minHeight: 200,
-                  overflow: 'hidden'
-                }}
+              <Card
+                className="controller-panel"
+                style={{ height: '100%', minHeight: 200, overflow: 'hidden' }}
                 bodyStyle={{ padding: 0 }}
               >
-                {/* Header avec dégradé */}
-                <div style={{ 
-                  background: '#1C7ED6',
-                  padding: '10px 5px 10px',
-                  position: 'relative'
-                }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <Avatar
-                      src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`}
-                      size={{ xs: 80, sm: 100, md: 120,lg:130,xl:140 }}
-                      style={{ 
-                        border: '4px solid white', 
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-                        marginBottom: 16
-                      }}
-                    />
-                    <Title 
-                      level={3} 
-                      style={{ 
-                        margin: 0, 
-                        color: 'white',
-                        fontSize: 'clamp(18px, 4vw, 24px)',
-                        fontWeight: 600,
-                        textShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                      }}
-                    >
+                {/* En-tête étudiant */}
+                <div className="flex items-center gap-4 border-b border-slate-100 px-6 py-5">
+                  <Avatar
+                    src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`}
+                    size={{ xs: 64, sm: 72, md: 80, lg: 88, xl: 96 }}
+                    className="shrink-0 ring-2 ring-slate-200"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Étudiant scanné
+                    </Text>
+                    <Title level={3} className="mb-1! mt-1! truncate text-slate-900!">
                       {data.etudiant?.prenom} {data.etudiant?.nom}
                     </Title>
-                    <Space style={{ marginTop: 8 }} wrap>
-                      <Tag 
-                        icon={<IdcardOutlined />}
-                        color="blue"
-                        style={{ 
-                          fontSize: 14, 
-                          padding: '4px 12px',
-                          borderRadius: 16
-                        }}
-                      >
-                        {data.etudiant?.ncs}
-                      </Tag>
-                    </Space>
+                    <Tag
+                      icon={<IdcardOutlined />}
+                      color="blue"
+                      style={{ borderRadius: 999 }}
+                    >
+                      {data.etudiant?.ncs}
+                    </Tag>
                   </div>
                 </div>
 
@@ -587,10 +592,10 @@ function RouteComponent() {
                   {/* Carte Solde */}
                   <Card 
                     style={{ 
-                      background: 'linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%)', 
-                      borderColor: '#b7eb8f',
+                      background: '#f8fafc', 
+                      borderColor: '#e2e8f0',
                       borderRadius: 12,
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+                      boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)'
                     }}
                     bodyStyle={{ padding: '20px' }}
                   >
@@ -657,7 +662,7 @@ function RouteComponent() {
                   padding: '0 16px'
                 }}>
                   <div style={{ 
-                    background: 'linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%)', 
+                    background: '#f1f5f9', 
                     padding: 32, 
                     borderRadius: '50%',
                     marginBottom: 24,
@@ -679,18 +684,19 @@ function RouteComponent() {
 
         {/* Section Transfert vers Recouvreur */}
         <Card
+          className="controller-panel"
           title={
             <Space>
-              <SendOutlined style={{ fontSize: 20, color: '#fa8c16' }} />
-              <Text strong style={{ color: '#fa8c16' }}>Transfert vers Recouvreur</Text>
+              <SendOutlined style={{ fontSize: 20, color: '#0f172a' }} />
+              <Text strong style={{ color: '#0f172a' }}>Transfert vers Recouvreur</Text>
             </Space>
           }
           extra={
-            <Button 
+            <Button
               type="primary"
               icon={<SendOutlined />}
               onClick={() => setOpenedTransfert(true)}
-              style={{ background: '#fa8c16', borderColor: '#fa8c16' }}
+              style={{ background: '#f97316', borderColor: '#f97316' }}
             >
               Nouveau Transfert
             </Button>
@@ -698,48 +704,30 @@ function RouteComponent() {
         >
           <Row gutter={[16, 16]}>
             <Col xs={24} md={8}>
-              <Card 
-                size="small" 
-                style={{ 
-                  background: 'linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%)',
-                  borderColor: '#ffd591'
-                }}
-              >
+              <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title="Transferts en attente"
+                  title={<span className="text-orange-700 font-medium">Transferts en attente</span>}
                   value={mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length || 0}
-                  valueStyle={{ color: '#fa8c16' }}
+                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
                 />
               </Card>
             </Col>
             <Col xs={24} md={8}>
-              <Card 
-                size="small"
-                style={{ 
-                  background: 'linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%)',
-                  borderColor: '#b7eb8f'
-                }}
-              >
+              <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title="Transferts validés"
+                  title={<span className="text-emerald-700 font-medium">Transferts validés</span>}
                   value={mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length || 0}
-                  valueStyle={{ color: '#52c41a' }}
+                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
                 />
               </Card>
             </Col>
             <Col xs={24} md={8}>
-              <Card 
-                size="small"
-                style={{ 
-                  background: 'linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%)',
-                  borderColor: '#b7eb8f'
-                }}
-              >
+              <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title="Montant total transféré"
+                  title={<span className="text-emerald-700 font-medium">Montant total transféré</span>}
                   value={mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0}
                   formatter={(value) => formatMontant(Number(value))}
-                  valueStyle={{ color: '#52c41a' }}
+                  valueStyle={{ color: '#16a34a', fontSize: '1.5rem', fontWeight: 800 }}
                 />
               </Card>
             </Col>
@@ -748,6 +736,7 @@ function RouteComponent() {
           <Divider />
           
           <Table
+            className="controller-table"
             columns={[
               {
                 title: 'Date',
@@ -802,14 +791,15 @@ function RouteComponent() {
 
         {/* Operations Table */}
         <Card
+          className="controller-panel"
           title={
             <Space>
-              <DollarOutlined style={{ fontSize: 20, color: '#52c41a' }} />
-              <Text strong style={{ color: '#52c41a' }}>Mes Opérations (Recharges)</Text>
+              <DollarOutlined style={{ fontSize: 20, color: '#0f172a' }} />
+              <Text strong style={{ color: '#0f172a' }}>Mes Opérations (Recharges)</Text>
             </Space>
           }
           extra={
-            <Button 
+            <Button
               icon={<PrinterOutlined />}
               onClick={handlePrintRecord}
             >
@@ -818,17 +808,18 @@ function RouteComponent() {
           }
         >
           <Space orientation="vertical" style={{ width: '100%' }}>
-            <RangePicker 
-              onChange={(dates: any) => setTimeFilterO(dates)} 
-              value={timeFilterO} 
-              placeholder={['Début', 'Fin']} 
-              maxDate={dayjs().endOf('day')} 
-              showTime 
+            <RangePicker
+              onChange={(dates: any) => setTimeFilter(dates)}
+              value={timeFilter}
+              placeholder={['Début', 'Fin']}
+              maxDate={dayjs().endOf('day')}
+              showTime
               style={{ width: '100%', maxWidth: 400 }}
             />
-            <Table 
-              columns={columnsO} 
-              dataSource={operationsData} 
+            <Table
+              className="controller-table"
+              columns={columnsO}
+              dataSource={operationsData}
               rowKey="_id"
               pagination={{ pageSize: 10 }}
               scroll={{ x: 800 }}
@@ -895,8 +886,8 @@ function RouteComponent() {
             <Card 
               size="small" 
               style={{ 
-                background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)',
-                border: '1px solid #bae7ff',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
                 borderRadius: 12
               }}
             >
@@ -960,10 +951,10 @@ function RouteComponent() {
             <Card 
               size="small" 
               style={{ 
-                background: 'linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%)', 
-                borderColor: '#b7eb8f',
+                background: '#f0fdf4', 
+                borderColor: '#bbf7d0',
                 borderRadius: 12,
-                boxShadow: '0 2px 8px rgba(82, 196, 26, 0.1)'
+                boxShadow: '0 2px 8px rgba(34, 197, 94, 0.1)'
               }}
             >
               <Space direction="vertical" style={{ width: '100%' }} size="small">
@@ -1070,8 +1061,8 @@ function RouteComponent() {
           <Card 
             size="small" 
             style={{ 
-              background: 'linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%)',
-              border: '1px solid #91d5ff',
+              background: '#eff6ff',
+              border: '1px solid #bfdbfe',
               borderRadius: 12
             }}
           >
@@ -1155,10 +1146,10 @@ function RouteComponent() {
             <Card 
               size="small" 
               style={{ 
-                background: 'linear-gradient(135deg, #fff7e6 0%, #ffe7ba 100%)', 
-                borderColor: '#ffd591',
+                background: '#fff7ed', 
+                borderColor: '#fed7aa',
                 borderRadius: 12,
-                boxShadow: '0 2px 8px rgba(250, 140, 22, 0.1)'
+                boxShadow: '0 2px 8px rgba(249, 115, 22, 0.1)'
               }}
             >
               <Space direction="vertical" style={{ width: '100%' }} size="small">
@@ -1203,5 +1194,6 @@ function RouteComponent() {
         </Space>
       </Modal>
     </Spin>
+    </div>
   );
 }

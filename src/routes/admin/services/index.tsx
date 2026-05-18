@@ -1,4 +1,5 @@
-import { createFileRoute, redirect, useNavigate} from '@tanstack/react-router'
+import { createFileRoute, useNavigate} from '@tanstack/react-router'
+import { requireRole } from '@/lib/route-protection';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { 
   Card, 
@@ -11,14 +12,14 @@ import {
   Space, 
   Spin,
   Typography,
-  Divider,
   Row,
   Col,
   message,
   Switch,
   Tag,
   Popconfirm,
-  InputNumber
+  InputNumber,
+  Statistic
 } from 'antd';
 import { 
   PlusOutlined, 
@@ -33,7 +34,6 @@ import {
 import { useMemo, useState, useEffect } from "react";
 import { TicketService } from '@/services/ticket.service';
 import { ServiceService } from '@/services/service.service';
-import { getSession } from '@/auth/auth-client';
 import type { ColumnsType } from 'antd/es/table';
 import { TypeService, type Service } from '@/types/service';
 import { USER_ROLE } from '@/types/user.roles';
@@ -86,12 +86,7 @@ const TypeServiceLabels: Record<TypeService, string> = {
 };
 
 export const Route = createFileRoute('/admin/services/')({
-   beforeLoad: async () => {
-    const session = await getSession();
-    if (session.data?.user?.role !== USER_ROLE.SUPERADMIN) {
-      throw redirect({ to: '/admin/unauthorized' });
-    }
-  },
+  beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -400,82 +395,111 @@ function RouteComponent() {
     return filtered;
   }, [services, debouncedSearchText, typeFilter]);
 
+  const activeServices = filteredServices.filter(s => s.active).length;
+  const inactiveServices = filteredServices.filter(s => !s.active).length;
+
   return (
-    <div>
-      <Card 
-        style={{ 
-          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
-        }}
-      >
-        <Space orientation="vertical" size="large" style={{ width: '90%' }}>
-          {/* Header */}
-          <Row justify="space-between" align="middle">
-            <Col>
-              <Title level={3} style={{ margin: 0 }}>
-                <ShopOutlined /> Gestion des Services
-              </Title>
-              <Text type="secondary">
-                {filteredServices?.length || 0} service(s) au total
-              </Text>
-            </Col>
-            <Col>
-              <Button
-                type="primary"
-                size="large"
-                icon={<PlusOutlined />}
-                onClick={handleOpenCreate}
-                style={{ 
-                  background: '#22C55E',
-                  borderColor: '#22C55E'
-                }}
-              >
-                Ajouter un service
-              </Button>
-            </Col>
-          </Row>
+    <div className="controller-page">
+      <Spin spinning={isLoadingServices}>
+        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+          {/* Hero Header */}
+          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+            <Row gutter={[24, 16]} align="middle" wrap>
+              <Col flex="none">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                  <ShopOutlined style={{ fontSize: 28 }} />
+                </div>
+              </Col>
+              <Col flex="auto">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Gestion
+                </Text>
+                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                  Services
+                </Title>
+                <Text type="secondary">
+                  Gérez tous les services du campus
+                </Text>
+              </Col>
+              <Col flex="none">
+                <Space>
+                  <Input.Search
+                    prefix={<SearchOutlined />}
+                    placeholder="Rechercher..."
+                    allowClear
+                    style={{ width: 250 }}
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                  />
+                  <Select
+                    placeholder="Type"
+                    allowClear
+                    style={{ width: 150 }}
+                    value={typeFilter}
+                    onChange={setTypeFilter}
+                    options={TypeServiceOptions}
+                  />
+                  <Button 
+                    type="primary" 
+                    icon={<PlusOutlined />} 
+                    onClick={handleOpenCreate}
+                  >
+                    Nouveau
+                  </Button>
+                </Space>
+              </Col>
+            </Row>
+          </Card>
 
-          <Divider style={{ margin: '12px 0' }} />
-
-          {/* Search & Filters */}
-          <Row gutter={16}>
-            <Col xs={24} sm={12} md={10}>
-              <Input.Search
-                prefix={<SearchOutlined />}
-                placeholder="Rechercher par nom, localisation..."
-                allowClear
-                size="large"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-              />
+          {/* Statistiques */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-blue-700 font-medium">Total Services</span>}
+                  value={filteredServices.length}
+                  prefix={<ShopOutlined />}
+                  valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
             </Col>
-            <Col xs={24} sm={12} md={6}>
-              <Select
-                placeholder="Filtrer par type"
-                allowClear
-                size="large"
-                style={{ width: '100%' }}
-                value={typeFilter}
-                onChange={setTypeFilter}
-                options={TypeServiceOptions}
-              />
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-emerald-700 font-medium">Actifs</span>}
+                  value={activeServices}
+                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-orange-700 font-medium">Inactifs</span>}
+                  value={inactiveServices}
+                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
             </Col>
           </Row>
 
           {/* Table */}
-          <Table
-            columns={columns}
-            dataSource={filteredServices}
-            rowKey="_id"
-            scroll={{ x: 1200 }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showTotal: (total) => `Total: ${total} services`,
-            }}
-            bordered
-          />
+          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Services</span>}>
+            <Table
+              className="controller-table"
+              columns={columns}
+              dataSource={filteredServices}
+              rowKey="_id"
+              scroll={{ x: 1200 }}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `Total: ${total} services`,
+              }}
+            />
+          </Card>
         </Space>
-      </Card>
+      </Spin>
 
       {/* Create Drawer */}
       <Drawer

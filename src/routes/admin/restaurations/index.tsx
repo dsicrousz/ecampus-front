@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from '@tanstack/react-router'
+import { requireRole } from '@/lib/route-protection';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Card, 
@@ -9,7 +10,9 @@ import {
   Input,
   Empty,
   Switch,
-  message
+  message,
+  Space,
+  Statistic
 } from 'antd';
 import { 
   SearchOutlined,
@@ -19,11 +22,12 @@ import {
 import { useState } from "react";
 import { ServiceService } from "@/services/service.service";
 import { useDebounce } from "react-use";
-
+import { USER_ROLE } from '@/types/user.roles';
 
 const { Title, Text } = Typography;
 
 export const Route = createFileRoute('/admin/restaurations/')({
+  beforeLoad: () => requireRole([USER_ROLE.CHEF_RESTAURANT, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -70,86 +74,109 @@ function RouteComponent() {
   ) || [];
 
   return (
-    <div className="min-h-screen from-slate-50 via-green-50 to-slate-50 p-6">
+    <div className="controller-page">
       <div className="max-w-7xl mx-auto">
-        {/* Header Section */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-3 from-green-500 to-emerald-600 rounded-xl shadow-lg">
-              <ShopOutlined className="text-3xl text-white" />
-            </div>
-            <div>
-              <Title level={2} className="text-slate-800">
-                Services de Restauration
-              </Title>
-              <Text className="text-slate-600 text-base">
-                Gérez vos services et supervisez les consommations en temps réel
-              </Text>
-            </div>
-          </div>
-        </div>
-
-        {/* Search Bar */}
-        <Card className="mb-6 shadow-md border-0">
-          <Input
-            placeholder="Rechercher par nom, description ou restaurant..."
-            prefix={<SearchOutlined className="text-slate-400" />}
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            size="large"
-            allowClear
-            className="shadow-sm"
-          />
-        </Card>
-
-        {/* Content Section */}
         <Spin spinning={isLoading} size="large">
-          {restaurantServices.length === 0 ? (
-            <Card className="shadow-md border-0">
-              <Empty 
-                description={
-                  <span className="text-slate-500">
-                    {debouncedSearchText 
-                      ? "Aucun résultat pour votre recherche" 
-                      : "Aucun service de restauration disponible"}
-                  </span>
-                }
-                className="py-12"
-              />
+          <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+            {/* Hero Header */}
+            <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+              <Row gutter={[24, 16]} align="middle" wrap>
+                <Col flex="none">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                    <ShopOutlined style={{ fontSize: 28 }} />
+                  </div>
+                </Col>
+                <Col flex="auto">
+                  <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Services
+                  </Text>
+                  <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                    Restaurations
+                  </Title>
+                  <Text type="secondary">
+                    Gérez vos services de restauration
+                  </Text>
+                </Col>
+                <Col flex="none">
+                  <Input
+                    placeholder="Rechercher..."
+                    prefix={<SearchOutlined />}
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    allowClear
+                    style={{ width: 300 }}
+                  />
+                </Col>
+              </Row>
             </Card>
-          ) : (
-            <>
-              <div className="mb-4 flex items-center justify-between">
-                <Text className="text-slate-600 font-medium">
-                  {restaurantServices.length} service{restaurantServices.length > 1 ? 's' : ''} trouvé{restaurantServices.length > 1 ? 's' : ''}
-                </Text>
-              </div>
-              
+
+            {/* Statistiques */}
+            <Row gutter={[16, 16]}>
+              <Col xs={24} sm={8}>
+                <Card className="controller-stat-card" size="small">
+                  <Statistic
+                    title={<span className="text-blue-700 font-medium">Total Services</span>}
+                    value={restaurantServices.length}
+                    prefix={<ShopOutlined />}
+                    valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={8}>
+                <Card className="controller-stat-card" size="small">
+                  <Statistic
+                    title={<span className="text-emerald-700 font-medium">Actifs</span>}
+                    value={restaurantServices.filter(s => s.active).length}
+                    valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={8}>
+                <Card className="controller-stat-card" size="small">
+                  <Statistic
+                    title={<span className="text-orange-700 font-medium">Tickets</span>}
+                    value={restaurantServices.reduce((acc, s) => acc + (s.ticketsacceptes?.length || 0), 0)}
+                    valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            {/* Content Section */}
+            {restaurantServices.length === 0 ? (
+              <Card className="controller-panel">
+                <Empty 
+                  description={
+                    debouncedSearchText 
+                      ? "Aucun résultat pour votre recherche" 
+                      : "Aucun service de restauration disponible"
+                  }
+                />
+              </Card>
+            ) : (
               <Row gutter={[20, 20]}>
                 {restaurantServices.map((service) => (
                   <Col xs={24} sm={12} lg={8} xl={6} key={service._id}>
                     <Link to="/admin/restaurations/$restaurantId" params={{ restaurantId: service._id }}>
                       <Card
                         hoverable
-                        className="h-full transition-all duration-300 hover:shadow-2xl hover:-translate-y-1 border-0 shadow-md overflow-hidden group"
+                        className="h-full controller-panel transition-all duration-300 hover:shadow-xl"
                       >
                         {/* Status Badge */}
-                        <div className="absolute top-3 right-3 z-10" onClick={(e) => handleToggleStatus(e, service._id, service.active)}>
+                        <div className="flex justify-end mb-3" onClick={(e) => handleToggleStatus(e, service._id, service.active)}>
                           <Switch
                             checked={service.active}
                             size="small"
                             checkedChildren="ON"
                             unCheckedChildren="OFF"
-                            className={service.active ? 'bg-green-500' : ''}
                           />
                         </div>
 
-                        {/* Icon Header with Gradient */}
-                        <div className="from-green-500 to-emerald-600 p-6 -mx-6 -mt-6 mb-4 relative overflow-hidden">
-                          <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
-                          <ShopOutlined className="text-5xl text-white relative z-10 drop-shadow-lg" />
+                        {/* Icon Header */}
+                        <div className="bg-slate-900 p-4 -mx-6 -mt-6 mb-4 rounded-t-2xl relative">
+                          <ShopOutlined className="text-4xl text-white" />
                           {!service.active && (
-                            <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold">
+                            <div className="absolute top-2 right-2 bg-slate-700 text-white text-xs px-2 py-1 rounded-full font-semibold">
                               Inactif
                             </div>
                           )}
@@ -158,11 +185,11 @@ function RouteComponent() {
                         <div className="space-y-3">
                           {/* Service Name */}
                           <div>
-                            <Title level={4} className="mb-1 text-slate-800 line-clamp-1 group-hover:text-green-600 transition-colors">
+                            <Title level={4} className="mb-1 text-slate-900">
                               {service.nom}
                             </Title>
                             {service.description && (
-                              <Text className="text-sm text-slate-500 line-clamp-2 leading-relaxed">
+                              <Text className="text-sm text-slate-600 line-clamp-2">
                                 {service.description}
                               </Text>
                             )}
@@ -170,23 +197,20 @@ function RouteComponent() {
 
                           {/* Restaurant Location */}
                           {service && (
-                            <div className="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded-lg">
-                              <EnvironmentOutlined className="text-blue-500 text-base" />
-                              <Text className="text-sm text-slate-700 font-medium line-clamp-1">
+                            <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg">
+                              <EnvironmentOutlined className="text-slate-500" />
+                              <Text className="text-sm text-slate-700">
                                 {service.nom}
                               </Text>
                             </div>
                           )}
 
                           {/* Tickets Info */}
-                          <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                              <Text className="text-xs text-slate-600 font-medium">
-                                {service.ticketsacceptes?.length || 0} ticket{(service.ticketsacceptes?.length || 0) > 1 ? 's' : ''}
-                              </Text>
-                            </div>
-                            <Text className="text-xs text-green-600 font-semibold group-hover:translate-x-1 transition-transform">
+                          <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
+                            <Text className="text-xs text-slate-600 font-medium">
+                              {service.ticketsacceptes?.length || 0} ticket{(service.ticketsacceptes?.length || 0) > 1 ? 's' : ''}
+                            </Text>
+                            <Text className="text-xs text-blue-600 font-semibold">
                               Voir détails →
                             </Text>
                           </div>
@@ -196,8 +220,8 @@ function RouteComponent() {
                   </Col>
                 ))}
               </Row>
-            </>
-          )}
+            )}
+          </Space>
         </Spin>
       </div>
     </div>

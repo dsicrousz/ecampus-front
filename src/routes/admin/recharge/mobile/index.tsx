@@ -1,44 +1,27 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { 
-  Card, 
-  Button, 
-  InputNumber, 
-  Space, 
-  message, 
-  Spin, 
-  Modal, 
-  Typography, 
-  Avatar, 
-  Badge, 
-  Divider, 
-  Row, 
-  Col, 
-  Statistic
-} from 'antd';
-import { 
-  CheckCircleOutlined, 
-  DollarOutlined, 
-  WalletOutlined, 
-  PlusOutlined 
-} from '@ant-design/icons';
-import { FaQrcode, FaTimes } from 'react-icons/fa';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { message, Spin, Modal, InputNumber } from 'antd';
+import {
+  FaArrowLeft,
+  FaQrcode,
+  FaTimes,
+  FaWallet,
+  FaUser,
+  FaIdCard,
+  FaPlus,
+} from 'react-icons/fa';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CompteService } from '@/services/compte.service';
 import { OperationService } from '@/services/operation.service';
 import { VendeurService } from '@/services/vendeurservice';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { validate } from 'uuid';
 import { authClient } from '@/auth/auth-client';
 import type { Compte } from '@/types/compte';
 import { formatMontant } from '@/types/operation';
 import { env } from '@/env';
-
-const { Title, Text } = Typography;
-
-interface SoldeData {
-  solde: number;
-}
+import { cn } from '@/lib/utils';
+import { QUERY_KEYS, queryKeys } from '@/constants';
 
 interface RechargeData {
   compte: string;
@@ -53,27 +36,30 @@ export const Route = createFileRoute('/admin/recharge/mobile/')({
 
 function RouteComponent() {
   const { data: session } = authClient.useSession();
+  const navigate = useNavigate();
   const [openedRecharge, setOpenedRecharge] = useState(false);
   const [scannerOpened, setScannerOpened] = useState(false);
   const [montantRecharge, setMontantRecharge] = useState<number>(0);
   const [qr, setQr] = useState<string>();
   
   const qc = useQueryClient();
-  const vendeurService = new VendeurService();
-  const compteService = new CompteService();
-  const operationService = new OperationService();
+  const vendeurService = useMemo(() => new VendeurService(), []);
+  const compteService = useMemo(() => new CompteService(), []);
+  const operationService = useMemo(() => new OperationService(), []);
   
   const soldeVendeurKey = ['solde', session?.user?.id];
-  const key = ['compte_depot'];
+  const compteKey = qr
+    ? queryKeys.compteByCode(qr)
+    : ([QUERY_KEYS.COMPTES, 'code', 'pending'] as const);
 
-  const { data: soldeData, isLoading: isLoadingSolde } = useQuery<SoldeData>({
+  const { data: soldeData, isLoading: isLoadingSolde } = useQuery({
     queryKey: soldeVendeurKey,
     queryFn: () => vendeurService.getSolde(session!.user.id),
     enabled: !!session?.user?.id,
   });
 
   const { data, isLoading } = useQuery<Compte>({
-    queryKey: key,
+    queryKey: compteKey,
     queryFn: () => compteService.byCode(qr!),
     enabled: qr !== undefined,
   });
@@ -85,7 +71,9 @@ function RouteComponent() {
       setOpenedRecharge(false);
       setMontantRecharge(0);
       setQr(undefined);
-      qc.invalidateQueries({ queryKey: key });
+      if (qr) {
+        qc.invalidateQueries({ queryKey: queryKeys.compteByCode(qr) });
+      }
       qc.invalidateQueries({ queryKey: soldeVendeurKey });
     },
     onError: (error: any) => {
@@ -125,286 +113,236 @@ function RouteComponent() {
     console.error('Erreur de scan:', error);
   };
 
+  const studentSolde = data?.solde || 0;
+  const nouveauSolde = studentSolde + montantRecharge;
+  const canValidate = montantRecharge > 0 && !!data;
+
   return (
-    <Spin spinning={isLoading || isLoadingSolde || isPendingRecharge}>
-      <div className="min-h-screen bg-linear-to-br from-gray-50 to-purple-50 p-4">
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
-          {/* Header */}
-          <Card className="bg-linear-to-r from-purple-500 to-purple-600 border-0 shadow-xl">
-            <div className="text-center">
-              <div className="bg-white/20 p-4 rounded-xl backdrop-blur-sm inline-block mb-3">
-                <WalletOutlined className="text-4xl text-white" />
+    <div className="min-h-screen bg-slate-50 pb-24">
+      <Spin spinning={isLoading || isLoadingSolde || isPendingRecharge}>
+        {/* Top bar */}
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-3">
+            <button
+              type="button"
+              onClick={() => navigate({ to: '/' })}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 active:scale-95"
+              aria-label="Retour"
+            >
+              <FaArrowLeft />
+            </button>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Espace vendeur
+              </p>
+              <p className="truncate text-sm font-bold text-slate-900">Recharge de comptes</p>
+            </div>
+            <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+              En ligne
+            </span>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-md space-y-4 px-4 pt-4">
+          {/* Solde vendeur */}
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Mon solde vendeur
+                </p>
+                <p className="mt-1 text-3xl font-black tracking-tight text-slate-900">
+                  {formatMontant(soldeData?.solde || 0)}
+                </p>
               </div>
-              <Title level={3} className="text-white mb-2">
-                💰 Recharge de Comptes
-              </Title>
-              <Text className="text-purple-100">
-                Scannez le QR code d'un étudiant
-              </Text>
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-200">
+                <FaWallet className="text-xl" />
+              </div>
             </div>
-          </Card>
+          </section>
 
-          {/* Solde Vendeur */}
-          <Card className="bg-linear-to-br from-blue-50 to-blue-100 border-blue-200 shadow-lg">
-            <div className="text-center">
-              <Text type="secondary" className="text-sm block mb-2">
-                Mon Solde Vendeur
-              </Text>
-              <Title level={2} className="text-blue-600 mb-0">
-                {formatMontant(soldeData?.solde || 0)}
-              </Title>
-            </div>
-          </Card>
-
-          {/* Bouton Scanner */}
-          <Button
-            type="primary"
-            size="large"
-            icon={<FaQrcode />}
+          {/* Scan CTA */}
+          <button
+            type="button"
             onClick={() => setScannerOpened(true)}
-            className="w-full h-16 text-lg font-semibold"
-            style={{
-              backgroundColor: '#722ed1',
-              borderColor: '#722ed1',
-            }}
+            className="group relative flex w-full items-center justify-center gap-3 rounded-3xl bg-violet-600 px-4 py-5 text-base font-bold text-white shadow-lg transition hover:bg-violet-700 active:scale-[0.98]"
           >
-            📱 Scanner le QR Code Étudiant
-          </Button>
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25">
+              <FaQrcode className="text-xl" />
+            </span>
+            <span className="flex flex-col items-start leading-tight">
+              <span className="text-sm font-semibold uppercase tracking-wider text-white/80">
+                Action principale
+              </span>
+              <span className="text-lg">Scanner le QR code</span>
+            </span>
+          </button>
 
-          {/* Informations Étudiant */}
+          {/* Carte étudiant ou empty state */}
           {data ? (
-            <Card className="shadow-lg border-0">
-              {/* Header avec avatar */}
-              <div className="bg-linear-to-r from-blue-500 to-blue-600 p-4 -mx-6 -mt-6 mb-4 rounded-t-lg">
-                <div className="text-center">
-                  <Avatar
-                    src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`}
-                    size={100}
-                    className="border-4 border-white shadow-lg mb-3"
-                  />
-                  <Title level={4} className="text-white mb-1">
-                    {data.etudiant?.prenom} {data.etudiant?.nom}
-                  </Title>
-                  <Badge
-                    count={data.etudiant?.ncs}
-                    style={{ backgroundColor: '#1890ff' }}
-                  />
-                </div>
-              </div>
-
-              {/* Solde actuel */}
-              <Card 
-                className="bg-linear-to-br from-green-50 to-green-100 border-green-200 mb-4"
-                bodyStyle={{ padding: '16px' }}
-              >
-                <Row align="middle" gutter={16}>
-                  <Col flex="none">
-                    <div className="w-12 h-12 bg-green-500/10 rounded-full flex items-center justify-center">
-                      <WalletOutlined className="text-2xl text-green-600" />
+            <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
+                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl ring-2 ring-slate-200">
+                  {data.etudiant?.avatar ? (
+                    <img
+                      src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant.avatar}`}
+                      alt={`${data.etudiant.prenom} ${data.etudiant.nom}`}
+                      className="h-full w-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
+                      <FaUser />
                     </div>
-                  </Col>
-                  <Col flex="auto">
-                    <Text type="secondary" className="text-xs block">
-                      Solde disponible
-                    </Text>
-                    <Title level={3} className="text-green-600 mb-0">
-                      {formatMontant(data.solde || 0)}
-                    </Title>
-                  </Col>
-                </Row>
-              </Card>
-
-              {/* Bouton Recharger */}
-              <Button 
-                type="primary"
-                size="large"
-                icon={<PlusOutlined />}
-                onClick={openRecharge}
-                block
-                className="h-14 text-base font-semibold"
-                style={{
-                  backgroundColor: '#52c41a',
-                  borderColor: '#52c41a',
-                }}
-              >
-                Recharger le Compte
-              </Button>
-            </Card>
-          ) : (
-            <Card className="shadow-lg">
-              <div className="text-center py-12">
-                <div className="bg-gray-100 p-8 rounded-full inline-block mb-4">
-                  <FaQrcode className="text-5xl text-gray-400" />
+                  )}
                 </div>
-                <Title level={5} type="secondary">
-                  En attente de scan
-                </Title>
-                <Text type="secondary" className="text-sm">
-                  Scannez un QR code pour commencer
-                </Text>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-base font-bold text-slate-900">
+                    {data.etudiant?.prenom} {data.etudiant?.nom}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                    <FaIdCard className="text-slate-400" />
+                    {data.etudiant?.ncs || 'N/A'}
+                  </p>
+                </div>
               </div>
-            </Card>
+
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Solde du compte
+                  </p>
+                  <p className="mt-0.5 text-2xl font-black tracking-tight text-emerald-600">
+                    {formatMontant(studentSolde)}
+                  </p>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200">
+                  <FaWallet />
+                </div>
+              </div>
+
+              <div className="px-4 pb-4">
+                <button
+                  type="button"
+                  onClick={openRecharge}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3.5 text-base font-bold text-white shadow-md transition hover:bg-emerald-700 active:scale-[0.98]"
+                >
+                  <FaPlus />
+                  Recharger le compte
+                </button>
+              </div>
+            </section>
+          ) : (
+            <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-8 text-center">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                <FaQrcode className="text-3xl" />
+              </div>
+              <p className="mt-3 text-sm font-bold text-slate-700">En attente de scan</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Scannez un QR code étudiant pour commencer une recharge
+              </p>
+            </section>
           )}
+        </main>
 
-          {/* Statistiques */}
-          <Row gutter={[16, 16]}>
-            <Col span={12}>
-              <Card hoverable className="text-center">
-                <Statistic
-                  title="Solde Vendeur"
-                  value={soldeData?.solde || 0}
-                  prefix={<DollarOutlined />}
-                  valueStyle={{ color: '#1890ff', fontSize: '1.5rem' }}
-                  formatter={(value) => formatMontant(Number(value))}
-                />
-              </Card>
-            </Col>
-            <Col span={12}>
-              <Card hoverable className="text-center">
-                <Statistic
-                  title="Recharges"
-                  value={0}
-                  prefix={<CheckCircleOutlined />}
-                  valueStyle={{ color: '#52c41a', fontSize: '1.5rem' }}
-                />
-              </Card>
-            </Col>
-          </Row>
-        </Space>
-
-        {/* Modal Scanner QR Code */}
+        {/* Modal Scanner */}
         <Modal
           open={scannerOpened}
           onCancel={() => setScannerOpened(false)}
           title={
             <div className="flex items-center gap-2">
-              <FaQrcode className="text-purple-600 text-lg" />
-              <span className="text-lg font-semibold text-gray-800">Scanner le QR Code</span>
+              <FaQrcode className="text-violet-600 text-lg" />
+              <span className="text-base font-semibold text-slate-800">Scanner le QR Code</span>
             </div>
           }
-          width={500}
+          width="95%"
+          style={{ maxWidth: 500 }}
           centered
           footer={null}
-          className="qr-scanner-modal"
         >
-          <div className="space-y-4">
-            <div className="text-center mb-4">
-              <Text type="secondary">
-                Positionnez le QR code de l'étudiant devant la caméra
-              </Text>
-            </div>
-            
-            <div className="relative rounded-lg overflow-hidden" style={{ height: '400px' }}>
+          <div className="space-y-3">
+            <p className="text-center text-sm text-slate-500">
+              Positionnez le QR code de l'étudiant devant la caméra
+            </p>
+
+            <div className="relative aspect-square overflow-hidden rounded-2xl bg-black ring-1 ring-slate-200">
               <Scanner
                 onScan={handleScan}
                 onError={handleScanError}
-                constraints={{
-                  facingMode: 'environment',
-                }}
-                components={{
-                  finder: true,
-                }}
+                constraints={{ facingMode: 'environment' }}
+                components={{ finder: true }}
               />
             </div>
 
-            <div className="text-center">
-              <Button
-                icon={<FaTimes />}
-                onClick={() => setScannerOpened(false)}
-                size="large"
-              >
-                Annuler
-              </Button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setScannerOpened(false)}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 active:scale-[0.98]"
+            >
+              <FaTimes /> Annuler
+            </button>
           </div>
         </Modal>
 
         {/* Modal Recharge */}
-        <Modal 
-          open={openedRecharge} 
+        <Modal
+          open={openedRecharge}
           onCancel={() => {
             setOpenedRecharge(false);
             setMontantRecharge(0);
           }}
           title={
-            <Space>
-              <div className="w-10 h-10 bg-green-500/10 rounded-full flex items-center justify-center">
-                <PlusOutlined className="text-green-600 text-lg" />
-              </div>
-              <Title level={4} className="mb-0 text-green-600">Recharge de Compte</Title>
-            </Space>
+            <div className="flex items-center gap-2">
+              <FaPlus className="text-emerald-600 text-lg" />
+              <span className="text-base font-semibold text-slate-800">Recharge de compte</span>
+            </div>
           }
-          footer={[
-            <Button 
-              key="cancel" 
-              size="large"
-              onClick={() => {
-                setOpenedRecharge(false);
-                setMontantRecharge(0);
-              }}
-              block
-              className="mb-2"
-            >
-              Annuler
-            </Button>,
-            <Button 
-              key="submit" 
-              type="primary"
-              size="large"
-              icon={<CheckCircleOutlined />}
-              onClick={handleRecharge}
-              disabled={!montantRecharge || montantRecharge <= 0}
-              loading={isPendingRecharge}
-              block
-              style={{
-                backgroundColor: '#52c41a',
-                borderColor: '#52c41a',
-              }}
-            >
-              Valider la Recharge
-            </Button>,
-          ]}
           width="95%"
           style={{ maxWidth: 500 }}
           centered
+          footer={null}
         >
-          <Space direction="vertical" size="large" style={{ width: '100%', padding: '8px 0' }}>
+          <div className="space-y-3">
             {data && (
-              <Card 
-                size="small" 
-                className="bg-linear-to-br from-blue-50 to-blue-100 border-blue-200"
-              >
-                <Row gutter={16} align="middle">
-                  <Col flex="none">
-                    <Avatar
-                      src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`}
-                      size={60}
-                      className="border-2 border-white shadow"
+              <section className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl ring-2 ring-slate-200">
+                  {data.etudiant?.avatar ? (
+                    <img
+                      src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant.avatar}`}
+                      alt={`${data.etudiant.prenom} ${data.etudiant.nom}`}
+                      className="h-full w-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
                     />
-                  </Col>
-                  <Col flex="auto">
-                    <Text strong className="text-sm block">
-                      {data.etudiant?.prenom} {data.etudiant?.nom}
-                    </Text>
-                    <Badge
-                      count={data.etudiant?.ncs}
-                      style={{ backgroundColor: '#1890ff', fontSize: '10px' }}
-                    />
-                    <div className="mt-2">
-                      <Text type="secondary" className="text-xs">Solde: </Text>
-                      <Text strong className="text-green-600 text-sm">
-                        {formatMontant(data.solde || 0)}
-                      </Text>
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
+                      <FaUser />
                     </div>
-                  </Col>
-                </Row>
-              </Card>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-slate-900">
+                    {data.etudiant?.prenom} {data.etudiant?.nom}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <FaIdCard className="text-slate-400" />
+                    {data.etudiant?.ncs || 'N/A'}
+                  </p>
+                  <p className="mt-1 text-sm">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                      Solde :{' '}
+                    </span>
+                    <span className="font-bold text-emerald-600">
+                      {formatMontant(studentSolde)}
+                    </span>
+                  </p>
+                </div>
+              </section>
             )}
-            
+
             <div>
-              <Text strong className="text-sm block mb-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-600">
                 Montant de la recharge
-              </Text>
+              </label>
               <InputNumber
                 size="large"
                 min={0}
@@ -412,60 +350,73 @@ function RouteComponent() {
                 placeholder="Entrez le montant"
                 value={montantRecharge}
                 onChange={(value) => setMontantRecharge(value || 0)}
-                style={{ width: '100%' }}
+                style={{ width: '100%', marginTop: 6 }}
                 addonAfter="FCFA"
                 formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
               />
-              <Text type="secondary" className="text-xs block mt-2">
-                Montant minimum: 100 FCFA
-              </Text>
+              <p className="mt-1.5 text-[11px] text-slate-500">Montant minimum : 100 FCFA</p>
             </div>
-            
-            {montantRecharge > 0 && data && (
-              <Card 
-                size="small" 
-                className="bg-linear-to-br from-green-50 to-green-100 border-green-200"
-              >
-                <Space direction="vertical" style={{ width: '100%' }} size="small">
-                  <Text type="secondary" className="text-xs">
+
+            {canValidate && (
+              <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
+                <div className="border-b border-slate-100 px-3 py-2">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     Aperçu de la recharge
-                  </Text>
-                  <Divider style={{ margin: '8px 0' }} />
-                  <Row justify="space-between" align="middle">
-                    <Col>
-                      <Text type="secondary" className="text-xs">Solde actuel</Text>
-                    </Col>
-                    <Col>
-                      <Text strong className="text-sm">{formatMontant(data.solde || 0)}</Text>
-                    </Col>
-                  </Row>
-                  <Row justify="space-between" align="middle">
-                    <Col>
-                      <Text type="secondary" className="text-xs">Montant à ajouter</Text>
-                    </Col>
-                    <Col>
-                      <Text strong className="text-blue-600 text-sm">
-                        + {formatMontant(montantRecharge)}
-                      </Text>
-                    </Col>
-                  </Row>
-                  <Divider style={{ margin: '8px 0' }} />
-                  <Row justify="space-between" align="middle">
-                    <Col>
-                      <Text strong className="text-sm">Nouveau solde</Text>
-                    </Col>
-                    <Col>
-                      <Title level={4} className="text-green-600 mb-0">
-                        {formatMontant((data.solde || 0) + montantRecharge)}
-                      </Title>
-                    </Col>
-                  </Row>
-                </Space>
-              </Card>
+                  </p>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <span className="text-xs font-semibold text-slate-500">Solde actuel</span>
+                    <span className="text-sm font-bold text-slate-900">
+                      {formatMontant(studentSolde)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <span className="text-xs font-semibold text-slate-500">Montant à ajouter</span>
+                    <span className="text-sm font-bold text-blue-600">
+                      + {formatMontant(montantRecharge)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between bg-emerald-50/40 px-3 py-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                      Nouveau solde
+                    </span>
+                    <span className="text-lg font-black text-emerald-700">
+                      {formatMontant(nouveauSolde)}
+                    </span>
+                  </div>
+                </div>
+              </section>
             )}
-          </Space>
+
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenedRecharge(false);
+                  setMontantRecharge(0);
+                }}
+                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 active:scale-[0.98]"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleRecharge}
+                disabled={!canValidate || isPendingRecharge}
+                className={cn(
+                  'rounded-2xl px-4 py-3 text-sm font-bold text-white shadow-md transition active:scale-[0.98]',
+                  canValidate && !isPendingRecharge
+                    ? 'bg-emerald-600 hover:bg-emerald-700'
+                    : 'cursor-not-allowed bg-slate-300 shadow-none',
+                )}
+              >
+                {isPendingRecharge ? '...' : '✓ Valider'}
+              </button>
+            </div>
+          </div>
         </Modal>
-      </div>
-    </Spin>
+      </Spin>
+    </div>
   );
 }

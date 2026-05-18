@@ -1,25 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useQuery } from '@tanstack/react-query'
-import { 
-  Card, 
-  Table, 
-  Tag, 
-  Space, 
-  Typography
-} from 'antd'
-import { 
-  CalendarOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined
-} from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
-import { DecadeService } from '@/services/decade.service'
-import type { Decade } from '@/types/decade'
+import { requireRole } from '@/lib/route-protection';
+import { useQuery } from "@tanstack/react-query";
+import { Spin, Table, Space, Card, Typography, Tag, Row, Col } from "antd";
+import { CalendarOutlined, CheckCircleOutlined, CloseCircleOutlined } from "@ant-design/icons";
+import { DecadeService } from "@/services/decade.service";
+import type { Decade } from "@/types/decade";
+import type { ColumnsType } from "antd/es/table";
 import dayjs from '@/config/dayjs.config'
+import { USER_ROLE } from '@/types/user.roles';
 
-const { Title } = Typography
+const { Title, Text } = Typography;
 
 export const Route = createFileRoute('/admin/decades/')({
+  beforeLoad: () => requireRole([USER_ROLE.CHEF_RESTAURANT, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -87,25 +80,59 @@ function RouteComponent() {
   ]
 
   return (
-    <Card
-      title={
-        <Space>
-          <CalendarOutlined style={{ fontSize: 24, color: '#1890ff' }} />
-          <Title level={4} style={{ margin: 0 }}>Gestion des Décades</Title>
+    <div className="controller-page">
+      <Spin spinning={isLoading}>
+        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+          {/* Hero Header */}
+          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+            <Row gutter={[24, 16]} align="middle" wrap>
+              <Col flex="none">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                  <CalendarOutlined style={{ fontSize: 28 }} />
+                </div>
+              </Col>
+              <Col flex="auto">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Périodes
+                </Text>
+                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                  Décades
+                </Title>
+                <Text type="secondary">
+                  Gérez les périodes académiques
+                </Text>
+              </Col>
+              <Col flex="none">
+                <div className="min-w-[220px] rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Total
+                  </p>
+                  <p className="text-3xl font-bold text-slate-900">
+                    {decades?.length || 0}
+                  </p>
+                </div>
+              </Col>
+            </Row>
+          </Card>
+
+          {/* Table */}
+          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Décades</span>}>
+            <Table
+              className="controller-table"
+              columns={columns}
+              dataSource={decades}
+              rowKey="_id"
+              loading={isLoading}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: false,
+                showQuickJumper: true,
+                showTotal: (total) => `${total} décades`,
+              }}
+            />
+          </Card>
         </Space>
-      }
-    >
-      <Table
-        columns={columns}
-        dataSource={decades}
-        loading={isLoading}
-        rowKey="_id"
-        pagination={{
-          defaultPageSize: 10,
-          showSizeChanger: true,
-          showTotal: (total) => `Total: ${total} décades`
-        }}
-      />
-    </Card>
+      </Spin>
+    </div>
   )
 }

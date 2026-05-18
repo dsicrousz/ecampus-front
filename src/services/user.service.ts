@@ -2,7 +2,7 @@ import type { User } from "@/types/user";
 import Api from "./Api";
 import { Service } from "./Service";
 
-export class UserService extends Service {
+export class UserService extends Service<User> {
   constructor() {
     super(Api, 'user');
   }

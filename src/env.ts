@@ -18,6 +18,7 @@ export const env = createEnv({
     VITE_AUTH_API: z.string().optional(),
     VITE_APP_BACKURL_ETUDIANT: z.string().optional(),
     VITE_APP_TOKENSTORAGENAME: z.string(),
+    VITE_R2_URL: z.string().optional(),
   },
 
   runtimeEnv: {

@@ -1,4 +1,5 @@
-import { createFileRoute, redirect } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
+import { requireRole } from '@/lib/route-protection';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Card, 
@@ -13,15 +14,13 @@ import {
   Input,
   DatePicker,
   Switch,
-  Popconfirm,
   Row,
   Col,
-  Statistic
+  Statistic,
+  Spin
 } from 'antd';
 import { 
   PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   CalendarOutlined,
@@ -33,7 +32,6 @@ import { SessionService } from '@/services/session.service';
 import type { AxiosError } from 'axios';
 import type { Session, SessionStatus, SessionFormValues } from '@/types/session';
 import type { ColumnsType } from 'antd/es/table';
-import { getSession } from '@/auth/auth-client';
 import { USER_ROLE } from '@/types/user.roles';
 
 const { Title, Text } = Typography;
@@ -79,18 +77,12 @@ const isValidAnnee = (annee: string): boolean => {
 };
 
 export const Route = createFileRoute('/admin/sessions/')({
-   beforeLoad: async () => {
-    const session = await getSession();
-    if (session.data?.user?.role !== USER_ROLE.SUPERADMIN) {
-      throw redirect({ to: '/admin/unauthorized' });
-    }
-  },
+  beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
 function RouteComponent() {
   const [modalOpen, setModalOpen] = useState(false);
-  const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [form] = Form.useForm<SessionFormValues>();
   const queryClient = useQueryClient();
   const sessionService = new SessionService();
@@ -122,35 +114,6 @@ function RouteComponent() {
     }
   });
 
-  // Mutation pour mettre à jour une session
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<Session> }) => sessionService.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['session-active'] });
-      message.success('Session mise à jour avec succès');
-      setModalOpen(false);
-      setEditingSession(null);
-      form.resetFields();
-    },
-    onError: (error:AxiosError) => {
-      message.error(error.message || 'Erreur lors de la mise à jour');
-    }
-  });
-
-  // Mutation pour supprimer une session
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => sessionService.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      queryClient.invalidateQueries({ queryKey: ['session-active'] });
-      message.success('Session supprimée avec succès');
-    },
-    onError: (error: AxiosError<{ message?: string }>) => {
-      message.error(error.response?.data?.message || 'Erreur lors de la suppression');
-    }
-  });
-
   // Mutation pour activer une session
   const activateMutation = useMutation({
     mutationFn: (id: string) => sessionService.activate(id),
@@ -179,19 +142,7 @@ function RouteComponent() {
 
   // Ouvrir le modal de création
   const handleCreate = () => {
-    setEditingSession(null);
     form.resetFields();
-    setModalOpen(true);
-  };
-
-  // Ouvrir le modal d'édition
-  const handleEdit = (session: Session) => {
-    setEditingSession(session);
-    form.setFieldsValue({
-      annee: session.annee,
-      dateRange: [dayjs(session.dateDebut), dayjs(session.dateFin)],
-      description: session.description,
-    });
     setModalOpen(true);
   };
 
@@ -204,16 +155,7 @@ function RouteComponent() {
       description: values.description || '',
     };
 
-    if (editingSession) {
-      updateMutation.mutate({ id: editingSession._id, data: sessionData });
-    } else {
-      createMutation.mutate(sessionData);
-    }
-  };
-
-  // Supprimer une session
-  const handleDelete = (id: string) => {
-    deleteMutation.mutate(id);
+    createMutation.mutate(sessionData);
   };
 
   // Activer/Désactiver une session
@@ -293,161 +235,135 @@ function RouteComponent() {
       ellipsis: true,
       render: (text: string) => text || <Text type="secondary">Aucune description</Text>
     },
-    {
-      title: 'Actions',
-      key: 'actions',
-      align: 'center',
-      render: (_: any, record: Session) => (
-        <Space>
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-            size="small"
-          >
-            Modifier
-          </Button>
-          <Popconfirm
-            title="Supprimer la session"
-            description="Êtes-vous sûr de vouloir supprimer cette session ?"
-            onConfirm={() => handleDelete(record._id)}
-            okText="Oui"
-            cancelText="Non"
-            okButtonProps={{ danger: true }}
-          >
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              size="small"
-              loading={deleteMutation.isPending}
-            >
-              Supprimer
-            </Button>
-          </Popconfirm>
-        </Space>
-      )
-    }
   ];
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', padding: '24px' }}>
-      {/* Header */}
-      <Card style={{ background: 'linear-gradient(to right, #e6f7ff, #f0f5ff)' }}>
-        <Row justify="space-between" align="middle">
-          <Col>
-            <Space direction="vertical" size="small">
-              <Title level={2} style={{ margin: 0 }}>
-                <CalendarOutlined style={{ marginRight: 8 }} />
-                Gestion des Sessions E-campus
-              </Title>
-              <Text type="secondary">
-                Gérez les sessions e-campus
-              </Text>
-            </Space>
-          </Col>
-          <Col>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleCreate}
-              size="large"
-            >
-              Nouvelle Session
-            </Button>
-          </Col>
-        </Row>
-      </Card>
-
-      {/* Session Active */}
-      {activeSession && (
-        <Card style={{ borderLeft: '4px solid #52c41a' }}>
-          <Row gutter={16} align="middle">
-            <Col flex="auto">
-              <Space direction="vertical" size={0}>
-                <Text type="secondary">Session Active</Text>
-                <Title level={3} style={{ margin: 0 }}>
-                  {activeSession.annee}
-                </Title>
-                <Text>
-                  Du {formatSessionDate(activeSession.dateDebut)} au {formatSessionDate(activeSession.dateFin)}
+    <div className="controller-page">
+      <Spin spinning={isLoading}>
+        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+          {/* Hero Header */}
+          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+            <Row gutter={[24, 16]} align="middle" wrap>
+              <Col flex="none">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                  <CalendarOutlined style={{ fontSize: 28 }} />
+                </div>
+              </Col>
+              <Col flex="auto">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Académique
                 </Text>
-              </Space>
+                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                  Sessions
+                </Title>
+                <Text type="secondary">
+                  Gérez les sessions académiques
+                </Text>
+              </Col>
+              <Col flex="none">
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  onClick={handleCreate}
+                >
+                  Nouvelle
+                </Button>
+              </Col>
+            </Row>
+          </Card>
+
+          {/* Session Active */}
+          {activeSession && (
+            <Card className="controller-panel" style={{ borderLeft: '4px solid #16a34a' }}>
+              <Row gutter={16} align="middle">
+                <Col flex="auto">
+                  <Space direction="vertical" size={0}>
+                    <Text className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Session Active</Text>
+                    <Title level={4} className="mb-1! text-slate-900!">
+                      {activeSession.annee}
+                    </Title>
+                    <Text type="secondary">
+                      Du {formatSessionDate(activeSession.dateDebut)} au {formatSessionDate(activeSession.dateFin)}
+                    </Text>
+                  </Space>
+                </Col>
+                <Col>
+                  <Tag color="green" style={{ fontSize: '16px', padding: '8px 16px' }}>
+                    <CheckCircleOutlined /> ACTIVE
+                  </Tag>
+                </Col>
+              </Row>
+            </Card>
+          )}
+
+          {/* Statistiques */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} md={6}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-blue-700 font-medium">Total Sessions</span>}
+                  value={stats.total}
+                  prefix={<CalendarOutlined />}
+                  valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
             </Col>
-            <Col>
-              <Tag color="green" style={{ fontSize: '16px', padding: '8px 16px' }}>
-                <CheckCircleOutlined /> ACTIVE
-              </Tag>
+            <Col xs={24} sm={12} md={6}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-emerald-700 font-medium">Session Active</span>}
+                  value={stats.active}
+                  prefix={<CheckCircleOutlined />}
+                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-blue-700 font-medium">En Cours</span>}
+                  value={stats.enCours}
+                  prefix={<InfoCircleOutlined />}
+                  valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} md={6}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-orange-700 font-medium">À Venir</span>}
+                  value={stats.aVenir}
+                  prefix={<CalendarOutlined />}
+                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
             </Col>
           </Row>
-        </Card>
-      )}
 
-      {/* Statistiques */}
-      <Row gutter={16}>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Total Sessions"
-              value={stats.total}
-              prefix={<CalendarOutlined />}
-              valueStyle={{ color: '#1890ff' }}
+          {/* Tableau des sessions */}
+          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Sessions</span>}>
+            <Table
+              className="controller-table"
+              columns={columns}
+              dataSource={sessions}
+              rowKey="_id"
+              loading={isLoading}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `Total: ${total} sessions`,
+              }}
             />
           </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Session Active"
-              value={stats.active}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="En Cours"
-              value={stats.enCours}
-              prefix={<InfoCircleOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="À Venir"
-              value={stats.aVenir}
-              prefix={<CalendarOutlined />}
-              valueStyle={{ color: '#faad14' }}
-            />
-          </Card>
-        </Col>
-      </Row>
+        </Space>
+      </Spin>
 
-      {/* Tableau des sessions */}
-      <Card>
-        <Table
-          columns={columns}
-          dataSource={sessions}
-          rowKey="_id"
-          loading={isLoading}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `Total: ${total} sessions`,
-          }}
-        />
-      </Card>
-
-      {/* Modal de création/édition */}
+      {/* Modal de création */}
       <Modal
-        title={editingSession ? 'Modifier la Session' : 'Nouvelle Session'}
+        title="Nouvelle Session"
         open={modalOpen}
         onCancel={() => {
           setModalOpen(false);
-          setEditingSession(null);
           form.resetFields();
         }}
         footer={null}
@@ -502,7 +418,6 @@ function RouteComponent() {
             <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
               <Button onClick={() => {
                 setModalOpen(false);
-                setEditingSession(null);
                 form.resetFields();
               }}>
                 Annuler
@@ -510,14 +425,14 @@ function RouteComponent() {
               <Button
                 type="primary"
                 htmlType="submit"
-                loading={createMutation.isPending || updateMutation.isPending}
+                loading={createMutation.isPending}
               >
-                {editingSession ? 'Mettre à jour' : 'Créer'}
+                Créer
               </Button>
             </Space>
           </Form.Item>
         </Form>
       </Modal>
-    </Space>
+    </div>
   );
 }

@@ -3,15 +3,19 @@ import { useState, useMemo } from "react";
 import { Spin, Table, Button, Input, Space, Card, Row, Col, Statistic, Typography, Tag } from "antd";
 import { FolderOutlined, SearchOutlined, CheckCircleOutlined, WalletOutlined } from "@ant-design/icons";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { requireRole } from '@/lib/route-protection';
 import { CompteService } from "@/services/compte.service";
 import type { Compte } from "@/types/compte";
 import type { ColumnsType } from "antd/es/table";
+import { USER_ROLE } from '@/types/user.roles';
+
+const { Title, Text } = Typography;
 
 export const Route = createFileRoute('/admin/comptes/')({
+  beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
-const { Title } = Typography;
 const PAGE_SIZE = 10;
 
 // Fonction utilitaire pour formater les montants
@@ -131,83 +135,101 @@ function RouteComponent() {
   ];
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      {/* Statistiques */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Total Comptes"
-              value={comptes?.length || 0}
-              prefix={<WalletOutlined />}
-            />
+    <div className="controller-page">
+      <Spin spinning={isLoadingF}>
+        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+          {/* Hero Header */}
+          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+            <Row gutter={[24, 16]} align="middle" wrap>
+              <Col flex="none">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                  <WalletOutlined style={{ fontSize: 28 }} />
+                </div>
+              </Col>
+              <Col flex="auto">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Gestion
+                </Text>
+                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                  Comptes
+                </Title>
+                <Text type="secondary">
+                  Gérez les comptes étudiants et leurs soldes
+                </Text>
+              </Col>
+              <Col flex="none">
+                <Input
+                  placeholder="Rechercher..."
+                  prefix={<SearchOutlined />}
+                  value={searchText}
+                  onChange={(e) => {
+                    setSearchText(e.target.value);
+                    setPage(1);
+                  }}
+                  allowClear
+                  style={{ width: 300 }}
+                />
+              </Col>
+            </Row>
           </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Comptes Actifs"
-              value={activeAccounts}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic
-              title="Solde Total"
-              value={totalBalance}
-              formatter={(value) => formatMontant(value as number)}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-      </Row>
 
-      {/* Recherche */}
-      <Card>
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          <Title level={3} style={{ margin: 0 }}>
-            💳 Gestion des Comptes
-          </Title>
-          
-          <Input
-            placeholder="Rechercher par code, nom d'étudiant ou N° sociale..."
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={(e) => {
-              setSearchText(e.target.value);
-              setPage(1);
-            }}
-            allowClear
-            size="large"
-          />
+          {/* Statistiques */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-blue-700 font-medium">Total Comptes</span>}
+                  value={comptes?.length || 0}
+                  prefix={<WalletOutlined />}
+                  valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-emerald-700 font-medium">Comptes Actifs</span>}
+                  value={activeAccounts}
+                  prefix={<CheckCircleOutlined />}
+                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-orange-700 font-medium">Solde Total</span>}
+                  value={totalBalance}
+                  formatter={(value) => formatMontant(value as number)}
+                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Table */}
+          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Comptes</span>}>
+            <Table
+              className="controller-table"
+              columns={columns}
+              dataSource={paginatedComptes}
+              rowKey="_id"
+              pagination={{
+                current: page,
+                pageSize: PAGE_SIZE,
+                total: filteredComptes.length,
+                onChange: (p) => setPage(p),
+                showSizeChanger: false,
+                showQuickJumper: true,
+                showTotal: (total, range) => 
+                  `${range[0]}-${range[1]} sur ${total} compte${total > 1 ? 's' : ''}`,
+              }}
+              loading={isLoadingF}
+              scroll={{ x: 'max-content' }}
+            />
+          </Card>
         </Space>
-      </Card>
-
-      {/* Table */}
-      <Card>
-        <Spin spinning={isLoadingF}>
-          <Table
-            columns={columns}
-            dataSource={paginatedComptes}
-            rowKey="_id"
-            pagination={{
-              current: page,
-              pageSize: PAGE_SIZE,
-              total: filteredComptes.length,
-              onChange: (p) => setPage(p),
-              showSizeChanger: false,
-              showQuickJumper: true,
-              showTotal: (total, range) => 
-                `${range[0]}-${range[1]} sur ${total} compte${total > 1 ? 's' : ''}`,
-            }}
-            loading={isLoadingF}
-            scroll={{ x: 'max-content' }}
-          />
-        </Spin>
-      </Card>
-    </Space>
+      </Spin>
+    </div>
   )
 }

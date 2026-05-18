@@ -1,23 +1,24 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { requireRole } from '@/lib/route-protection';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { 
-  Card, 
-  Table, 
-  Button, 
-  Drawer, 
-  Form, 
-  Input, 
-  Space, 
+import {
+  Card,
+  Table,
+  Button,
+  Drawer,
+  Form,
+  Input,
+  Space,
   Spin,
   Typography,
-  Divider,
   Row,
   Col,
   message,
   DatePicker,
   Popconfirm,
   Upload,
-  Tag
+  Tag,
+  Statistic
 } from 'antd';
 import { 
   PlusOutlined, 
@@ -30,21 +31,16 @@ import {
 } from '@ant-design/icons';
 import { useState, useMemo } from "react";
 import { PubService } from '@/services/pub.service';
-import { getSession } from '@/auth/auth-client';
 import type { ColumnsType } from 'antd/es/table';
 import type { Pub, CreatePubDto } from '@/types/pub';
 import { USER_ROLE } from '@/types/user.roles';
 import dayjs from 'dayjs';
+import { env } from '@/env';
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 export const Route = createFileRoute('/admin/pubs/')({
-   beforeLoad: async () => {
-    const session = await getSession();
-    if (session.data?.user?.role !== USER_ROLE.SUPERADMIN && session.data?.user?.role !== USER_ROLE.ADMIN) {
-      throw redirect({ to: '/admin/unauthorized' });
-    }
-  },
+  beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -198,7 +194,7 @@ function RouteComponent() {
       dataIndex: 'image',
       key: 'image',
       render: (image: string) => image ? (
-        <img src={image} alt="pub" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }} />
+        <img src={env.VITE_R2_URL + '/pubs/' + image} alt="pub" style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 4 }} />
       ) : <Text type="secondary">-</Text>,
     },
     {
@@ -247,72 +243,104 @@ function RouteComponent() {
     );
   }, [pubs, searchText]);
 
+  const activePubs = pubs?.filter(pub => !pub.isExpired).length || 0;
+  const inactivePubs = pubs?.filter(pub => pub.isExpired).length || 0;
+
   return (
-    <div>
-      <Card 
-        style={{ 
-          boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02)',
-        }}
-      >
-        <Space orientation="vertical" size="large" style={{ width: '90%' }}>
-          {/* Header */}
-          <Row justify="space-between" align="middle">
-            <Col>
-              <Title level={3} style={{ margin: 0 }}>
-                <SoundOutlined /> Gestion des Publicités
-              </Title>
-              <Text type="secondary">
-                {filteredPubs?.length || 0} publicité(s) au total
-              </Text>
-            </Col>
-            <Col>
-              <Button
-                type="primary"
-                size="large"
-                icon={<PlusOutlined />}
-                onClick={handleOpenCreate}
-                style={{ 
-                  background: '#22C55E',
-                  borderColor: '#22C55E'
-                }}
-              >
-                Ajouter une publicité
-              </Button>
-            </Col>
-          </Row>
+    <div className="controller-page">
+      <Spin spinning={isLoading}>
+        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+          {/* Hero Header */}
+          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+            <Row gutter={[24, 16]} align="middle" wrap>
+              <Col flex="none">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                  <SoundOutlined style={{ fontSize: 28 }} />
+                </div>
+              </Col>
+              <Col flex="auto">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Communication
+                </Text>
+                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                  Publicités
+                </Title>
+                <Text type="secondary">
+                  Gérez les publicités et annonces
+                </Text>
+              </Col>
+              <Col flex="none">
+                <Space>
+                  <Input
+                    placeholder="Rechercher..."
+                    prefix={<SearchOutlined />}
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    allowClear
+                    style={{ width: 250 }}
+                  />
+                  <Button 
+                    type="primary" 
+                    icon={<PlusOutlined />} 
+                    onClick={handleOpenCreate}
+                  >
+                    Nouvelle
+                  </Button>
+                </Space>
+              </Col>
+            </Row>
+          </Card>
 
-          <Divider style={{ margin: '12px 0' }} />
-
-          {/* Search */}
-          <Row gutter={16}>
-            <Col xs={24} sm={12} md={10}>
-              <Input.Search
-                prefix={<SearchOutlined />}
-                placeholder="Rechercher par titre, description..."
-                allowClear
-                size="large"
-                value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
-              />
+          {/* Statistiques */}
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-blue-700 font-medium">Total Publicités</span>}
+                  value={pubs?.length || 0}
+                  prefix={<SoundOutlined />}
+                  valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-emerald-700 font-medium">Actives</span>}
+                  value={activePubs}
+                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card className="controller-stat-card" size="small">
+                <Statistic
+                  title={<span className="text-orange-700 font-medium">Inactives</span>}
+                  value={inactivePubs}
+                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
+                />
+              </Card>
             </Col>
           </Row>
 
           {/* Table */}
-          <Table
-            columns={columns}
-            dataSource={filteredPubs}
-            rowKey="_id"
-            loading={isLoading}
-            scroll={{ x: 1000 }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showTotal: (total) => `Total: ${total} publicité(s)`,
-            }}
-            bordered
-          />
+          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Publicités</span>}>
+            <Table
+              className="controller-table"
+              columns={columns}
+              dataSource={filteredPubs}
+              rowKey="_id"
+              loading={isLoading}
+              scroll={{ x: 1000 }}
+              pagination={{
+                pageSize: 10,
+                showSizeChanger: true,
+                showTotal: (total) => `Total: ${total} publicité(s)`,
+              }}
+            />
+          </Card>
         </Space>
-      </Card>
+      </Spin>
 
       {/* Create Drawer */}
       <Drawer

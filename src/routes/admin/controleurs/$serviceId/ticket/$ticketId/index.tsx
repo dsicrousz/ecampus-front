@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { OperationService } from '@/services/operation.service';
 import { useSymbologyScanner } from '@use-symbology-scanner/react';
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { FaArrowLeft, FaTicketAlt, FaMoneyBillWave, FaCheckCircle, FaClock } from 'react-icons/fa';
 import { ServiceService } from '@/services/service.service';
 import { TicketService } from '@/services/ticket.service';
@@ -13,7 +13,7 @@ import error from '../../../error.mp3';
 import { message, Spin, Button, Card, Badge, Modal, Image, Typography, Avatar, Statistic, Divider} from 'antd';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
-import { QUERY_KEYS } from '@/constants';
+import { queryKeys } from '@/constants';
 import type { Compte } from '@/types/compte';
 import { useSession } from '@/auth/auth-client';
 import type { Operation } from '@/types/operation';
@@ -38,39 +38,63 @@ function RouteComponent() {
    const {data:session} = useSession();
     const navigate = useNavigate();
       const qc = useQueryClient();
-     const playSuccess = new Howl({
+     const playSuccess = useMemo(() => new Howl({
       src: [success],
       autoplay:false
-    });
-      const playError = new Howl({
+    }), []);
+      const playError = useMemo(() => new Howl({
       src: [error],
       autoplay:false
-    });
+    }), []);
     const [scannedCode, setScannedCode] = useState<string | null>(null);
     const [studentData, setStudentData] = useState<Compte | null>(null);
     const [modalOpened, setModalOpened] = useState(false);
-    const ticketService = new TicketService();
-    const serviceService = new ServiceService();
-    const compteService = new CompteService();
+    const ticketService = useMemo(() => new TicketService(), []);
+    const serviceService = useMemo(() => new ServiceService(), []);
+    const compteService = useMemo(() => new CompteService(), []);
+
+  // Responsive routing: redirect to mobile on tablet and smaller screens
+  useEffect(() => {
+    const checkScreenSize = () => {
+      if (window.innerWidth < 992) {
+        navigate({ to: '/admin/controleurs/$serviceId/ticket/$ticketId/mobile', params: { serviceId, ticketId } });
+      }
+    };
+
+    // Check initial screen size
+    checkScreenSize();
+
+    // Add resize listener
+    const handleResize = () => {
+      checkScreenSize();
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [navigate, serviceId, ticketId]);
     
     const {data:ticket, isLoading: isLoadingTicket} = useQuery({ 
-        queryKey: [QUERY_KEYS.TICKETS, ticketId], 
+        queryKey: queryKeys.ticketDetail(ticketId), 
         queryFn: () => ticketService.getOne(ticketId) 
     });
     
     const {data:service, isLoading: isLoadingService} = useQuery({ 
-        queryKey: [QUERY_KEYS.SERVICES], 
+        queryKey: queryKeys.serviceDetail(serviceId), 
         queryFn: () => serviceService.getOne(serviceId),
         enabled: !!serviceId
     });
     
-     const operationService = new OperationService();
+     const operationService = useMemo(() => new OperationService(), []);
 
 
      const {mutate:createUtilisation,isPending} = useMutation({
         mutationFn: (data:Partial<Operation>) => operationService.utilisation(data),
         onSuccess: () => {
-         qc.invalidateQueries({queryKey: [QUERY_KEYS.OPERATIONS_BY_TICKET, ticketId]});
+         qc.invalidateQueries({queryKey: queryKeys.operationsByTicket(ticketId)});
          playSuccess.play();
          message.success('Utilisation enregistrée avec succès!');
          setModalOpened(false);
@@ -104,7 +128,7 @@ function RouteComponent() {
 
 
       const {data:hasConsumedToday, isLoading: isLoadingHasConsumedToday} = useQuery({
-        queryKey: ['hasConsumedToday', studentData?._id, ticketId],
+        queryKey: queryKeys.hasConsumedToday(studentData?._id!, ticketId),
         queryFn: () => operationService.hasConsumedToday(studentData?._id!, ticketId),
         enabled: !!studentData && !!ticketId
      });
@@ -120,7 +144,7 @@ function RouteComponent() {
 
 
      const {data:operations,isLoading:isLoadingR} = useQuery({
-      queryKey: [QUERY_KEYS.OPERATIONS_BY_TICKET,ticketId],
+      queryKey: queryKeys.operationsByTicket(ticketId),
       queryFn: () => operationService.byTicket(ticketId),
       enabled: !!ticketId
    });
@@ -152,10 +176,9 @@ function RouteComponent() {
   return (
     <figure
       className={cn(
-        "relative mx-auto min-h-fit w-full max-w-[400px] cursor-pointer overflow-hidden rounded-xl p-4",
+        "relative mx-auto min-h-fit w-full max-w-[400px] cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-white p-4",
         "transition-all duration-300 ease-in-out hover:scale-[102%] hover:shadow-lg",
-        "bg-linear-to-br from-white to-blue-50 border border-blue-100",
-        "dark:from-gray-800 dark:to-gray-900 dark:border-gray-700"
+        "dark:border-gray-700 dark:bg-gray-900"
       )}
     >
       <div className="flex flex-row items-center gap-4">
@@ -196,54 +219,57 @@ function RouteComponent() {
 },(prevProps, nextProps) => prevProps.operation._id === nextProps.operation._id)
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-50 to-blue-50 p-6">
+    <div className="controller-page">
          <Spin
        spinning={isLoadingTicket || isLoadingService || isLoadingR || isPending || isLoadingHasConsumedToday}
        size="large"
        className="backdrop-blur-sm"
      >
      <div className="mb-6">
-         <div className="mb-4">
+         <div className="mb-5">
              <Button 
                 icon={<FaArrowLeft />} 
                 type="default" 
                 size="large"
-                className="shadow-sm hover:shadow-md transition-shadow"
+                className="controller-back-button"
                 onClick={() => navigate({to: `/admin/controleurs/$serviceId`, params: {serviceId}})}
              >
                  Retour aux tickets
              </Button>
          </div>
          
-         <Card className="bg-linear-to-r from-blue-500 to-blue-600 border-0 shadow-xl">
-            <div className="flex items-center justify-between">
+         <Card className="controller-hero border-0 shadow-xl">
+            <div className="flex items-center justify-between gap-8">
                 <div className="flex items-center gap-4">
-                    <div className="bg-white/20 p-4 rounded-xl backdrop-blur-sm">
-                        <FaTicketAlt className="text-4xl text-white" />
+                    <div className="controller-hero-icon">
+                        <FaTicketAlt className="text-4xl" />
                     </div>
                     <div>
-                        <Title level={2} className="text-white mb-1">
+                        <Text className="controller-hero-eyebrow">
+                            Contrôle ticket
+                        </Text>
+                        <Title level={2} className="controller-hero-title">
                             {service?.nom}
                         </Title>
-                        <Title level={4} className="text-blue-100 mb-0 font-normal">
+                        <Title level={4} className="controller-hero-subtitle">
                             {ticket?.nom}
                         </Title>
                         {ticket?.description && (
-                            <Text className="text-blue-50 text-sm mt-2 block">
+                            <Text className="controller-hero-copy mt-2 block">
                                 {ticket?.description}
                             </Text>
                         )}
                     </div>
                 </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-xl p-6">
+                <div className="controller-price-card">
                     <div className="text-center">
-                        <div className="text-blue-900 text-sm mb-1">Prix du ticket</div>
+                        <div className="controller-price-label">Prix du ticket</div>
                         <div className="flex items-center gap-2">
-                            <FaMoneyBillWave className="text-2xl text-white" />
-                            <span className="text-4xl font-bold text-blue-900">
+                            <FaMoneyBillWave className="text-2xl text-emerald-300" />
+                            <span className="controller-price-value">
                                 {ticket?.prix?.toLocaleString('fr-FR')}
                             </span>
-                            <span className="text-xl text-blue-900">FCFA</span>
+                            <span className="controller-price-currency">FCFA</span>
                         </div>
                     </div>
                 </div>
@@ -251,35 +277,35 @@ function RouteComponent() {
          </Card>
      </div>
     
-    <div className="flex gap-6 h-full">
-    <div className="w-7/12">
-      <Card className="h-full shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-        <div className="flex flex-col items-center justify-center h-full">
+    <div className="controller-desktop-grid">
+    <div>
+      <Card className="controller-panel h-full">
+        <div className="flex flex-col items-center justify-center h-full min-h-[560px]">
             <div className="mb-6 text-center">
-                <Title level={3} className="text-blue-600 mb-2">
+                <div className="controller-section-kicker">Scanner actif</div>
+                <Title level={3} className="controller-section-title">
                     Scannez le QR Code étudiant
                 </Title>
                 <Text type="secondary" className="text-base">
                     Positionnez le code-barres ou QR code devant le scanner
                 </Text>
             </div>
-            <div className="relative">
-                <div className="absolute inset-0 bg-blue-400 blur-3xl opacity-20 animate-pulse"></div>
+            <div className="controller-scan-frame">
                 <Image 
                     src="/qrcode.gif" 
-                    className="relative z-10 rounded-2xl shadow-2xl"
+                    className="controller-scan-image"
                     preview={false}
                 />
             </div>
-            <div className="mt-6 flex gap-4">
+            <div className="controller-scan-status">
                 <Badge status="processing" text="En attente de scan" className="text-base" />
             </div>
         </div>
       </Card>
     </div>
 
-   <div className="w-5/12">
-   <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+   <div>
+   <Card className="controller-panel">
       {/* <Table
       dataSource={operations || []}
       loading={isLoadingR}
@@ -329,12 +355,15 @@ function RouteComponent() {
         }
       ]}
     /> */}
-    <div className="mb-4">
-        <Title level={4} className="text-gray-700 mb-4">
+    <div className="mb-5">
+        <div className="flex items-center justify-between mb-4">
+        <Title level={4} className="controller-section-title mb-0">
             📊 Statistiques en temps réel
         </Title>
+        <Badge count={`${operations?.length || 0} opérations`} style={{ backgroundColor: '#0f172a' }} />
+        </div>
         <div className="grid grid-cols-2 gap-4 mb-4">
-            <Card className="bg-linear-to-br from-blue-50 to-blue-100 border-blue-200">
+            <Card className="controller-stat-card">
                 <Statistic 
                     title={<span className="text-blue-700 font-medium">Total opérations</span>}
                     value={operations?.length || 0}
@@ -342,7 +371,7 @@ function RouteComponent() {
                     prefix={<FaCheckCircle className="text-blue-500" />}
                 />
             </Card>
-            <Card className="bg-linear-to-br from-green-50 to-green-100 border-green-200">
+            <Card className="controller-stat-card">
                 <Statistic 
                     title={<span className="text-green-700 font-medium">Montant total</span>}
                     value={operations?.reduce((sum: number, op: Operation) => sum + (op.montant || 0), 0) || 0}
@@ -360,7 +389,7 @@ function RouteComponent() {
     
     <div
       className={cn(
-        "relative flex h-[400px] w-full flex-col overflow-hidden rounded-lg bg-linear-to-b from-gray-50 to-white p-3",
+        "controller-activity relative flex h-[400px] w-full flex-col overflow-hidden rounded-lg p-3",
       )}
     >
       {operations && operations.length > 0 ? (
@@ -370,7 +399,7 @@ function RouteComponent() {
               <Notification operation={item} key={item._id} />
             ))}
           </AnimatedList>
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-linear-to-t from-white to-transparent"></div>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-white/80"></div>
         </>
       ) : (
         <div className="flex flex-col items-center justify-center h-full text-gray-400">
@@ -407,13 +436,13 @@ function RouteComponent() {
         
         {studentData && (
             <div className="space-y-3 mt-3">
-                <div className="bg-linear-to-br from-blue-50 to-blue-100 p-4 rounded-lg border border-blue-200">
+                <div className="controller-modal-section">
                     <div className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
                         <span>👤</span> Informations de l'étudiant
                     </div>
                     
                     {hasConsumedToday?.hasConsumed && (
-                        <div className="mb-3 p-2 bg-linear-to-r from-orange-100 to-red-100 border-l-4 border-orange-500 rounded">
+                        <div className="mb-3 rounded border border-orange-200 bg-orange-50 p-2">
                             <div className="flex items-center gap-2">
                                 <span className="text-lg">⚠️</span>
                                 <Text strong className="text-orange-800 text-sm">
@@ -437,7 +466,7 @@ function RouteComponent() {
                                         className="object-cover"
                                     />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-gray-200 to-gray-300">
+                                    <div className="flex h-full w-full items-center justify-center bg-slate-200">
                                         <Text type="secondary" className="text-sm">Pas de photo</Text>
                                     </div>
                                 )}
@@ -471,7 +500,7 @@ function RouteComponent() {
                     
                 </div>
                 
-                <div className="bg-linear-to-br from-green-50 to-green-100 p-4 rounded-lg border border-green-200">
+                <div className="controller-modal-section">
                     <div className="text-sm font-semibold text-green-700 mb-3 flex items-center gap-2">
                         <span>📝</span> Détails de l'opération
                     </div>
@@ -487,7 +516,7 @@ function RouteComponent() {
                             <Text strong className="text-sm text-gray-800">{ticket?.nom}</Text>
                         </div>
                         
-                        <div className="flex justify-between items-center p-3 bg-linear-to-r from-green-100 to-green-200 rounded border border-green-300">
+                        <div className="flex justify-between items-center rounded border border-green-200 bg-green-50 p-3">
                             <Text strong className="text-sm text-green-800">💵 Prix</Text>
                             <div className="flex items-center gap-1">
                                 <span className="text-lg font-bold text-green-700">

@@ -26,11 +26,11 @@ function RouteComponent() {
   });
 
   return (
-    <div>
+    <div className="controller-page">
       <Spin spinning={isLoading}>
-        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
+        <Space direction="vertical" size="large" className="controller-stack">
           {/* Header Section */}
-          <div className="bg-linear-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-100">
+          <Card className="controller-hero controller-hero-soft">
             <div className="flex justify-between items-center">
               <div>
                 <Space size="middle" style={{ marginBottom: 8 }}>
@@ -41,7 +41,7 @@ function RouteComponent() {
                   >
                     Retour
                   </Button>
-                  <Title level={3} style={{ margin: 0, color: '#1677ff' }}>
+                  <Title level={3} className="controller-hero-title" style={{ margin: 0 }}>
                     🎫 Tickets Acceptés
                   </Title>
                 </Space>
@@ -49,34 +49,34 @@ function RouteComponent() {
                   {service?.nom}
                 </Title>
                 {service?.description && (
-                  <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
+                  <Text className="controller-hero-copy" style={{ marginTop: 4, display: 'block' }}>
                     {service.description}
                   </Text>
                 )}
               </div>
               <Badge color={service?.active ? 'green' : 'red'} count={service?.active ? 'Actif' : 'Inactif'} />
             </div>
-          </div>
+          </Card>
 
           {/* Service Info */}
-          <Card>
+          <Card className="controller-panel">
             <Title level={5} style={{ marginBottom: 16 }}>
               📋 Informations du Service
             </Title>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-blue-50 p-4 rounded-md">
+            <div className="controller-info-grid">
+              <div className="controller-info-card p-4">
                 <Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>Type de Service</Text>
                 <Text strong style={{ color: '#1677ff' }} className="capitalize">
                   {service?.typeService || '-'}
                 </Text>
               </div>
-              <div className="bg-green-50 p-4 rounded-md">
+              <div className="controller-info-card p-4">
                 <Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>Localisation</Text>
                 <Text strong style={{ color: '#52c41a' }}>
                   {service?.localisation || '-'}
                 </Text>
               </div>
-              <div className="bg-purple-50 p-4 rounded-md">
+              <div className="controller-info-card p-4">
                 <Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>Nombre de Places</Text>
                 <Text strong style={{ color: '#722ed1' }}>
                   {service?.nombre_de_places || '-'}
@@ -112,12 +112,12 @@ function RouteComponent() {
                   >
                     <Card
                       hoverable
-                      className="h-full transition-all duration-300 hover:shadow-xl hover:scale-105 border-green-200 group-hover:border-green-400"
+                      className="controller-ticket-card h-full transition-all duration-300"
                     >
-                      <div className="bg-linear-to-br from-green-500 to-emerald-600 p-6 -mx-6 -mt-6 mb-4">
+                      <div className="controller-ticket-top p-6 -mx-6 -mt-6 mb-4">
                         <div className="flex items-center justify-center">
-                          <div className="bg-white/20 p-4 rounded-full">
-                            <FaTicketAlt size={32} color="white" />
+                          <div className="bg-slate-100 p-4 rounded-full">
+                            <FaTicketAlt size={32} color="#0f172a" />
                           </div>
                         </div>
                       </div>
@@ -148,14 +148,14 @@ function RouteComponent() {
                           <Badge color="green" count={`${ticket.prix?.toLocaleString()} FCFA`} />
                         </div>
 
-                        <div className="bg-green-50 p-2 rounded-md">
+                        <div className="rounded-md bg-slate-100 p-2">
                           <div className="flex justify-between items-center">
-                            <Text style={{ fontSize: 12, color: '#52c41a' }} strong>
+                            <Text style={{ fontSize: 12, color: '#0f172a' }} strong>
                               ✓ Ticket Valide
                             </Text>
                             <FaArrowRight 
                               size={12} 
-                              className="text-green-600 group-hover:translate-x-1 transition-transform duration-200" 
+                              className="text-slate-700 group-hover:translate-x-1 transition-transform duration-200" 
                             />
                           </div>
                         </div>
@@ -165,7 +165,7 @@ function RouteComponent() {
                 ))}
               </div>
             ) : (
-              <Card className="text-center">
+              <Card className="controller-panel text-center">
                 <Empty
                   image={<div className="bg-gray-100 p-6 rounded-full inline-block"><FaTicketAlt size={48} className="text-gray-400" /></div>}
                   description={

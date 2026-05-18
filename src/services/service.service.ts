@@ -2,7 +2,7 @@ import type { Service as ServiceType } from "@/types/service";
 import Api from "./Api";
 import { Service } from "./Service";
 
-export class ServiceService extends Service{
+export class ServiceService extends Service<ServiceType>{
 constructor(){
     super(Api,'service');
 }
