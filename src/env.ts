@@ -27,6 +27,7 @@ export const env = createEnv({
     VITE_AUTH_API: import.meta.env.VITE_AUTH_API,
     VITE_APP_BACKURL_ETUDIANT: import.meta.env.VITE_APP_BACKURL_ETUDIANT,
     VITE_APP_TOKENSTORAGENAME: import.meta.env.VITE_APP_TOKENSTORAGENAME,
+    VITE_R2_URL: import.meta.env.VITE_R2_URL,
   },
 
   /**
