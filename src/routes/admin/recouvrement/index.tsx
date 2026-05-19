@@ -34,6 +34,7 @@ import { requireRole } from '@/lib/route-protection';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { TransfertVersementService } from '@/services/transfert-versement.service';
 import { UserService } from '@/services/user.service';
+import { RecouvreurService } from '@/services/recouvreurservice';
 import { useState } from 'react';
 import dayjs from '@/config/dayjs.config';
 import { authClient } from '@/auth/auth-client';
@@ -61,9 +62,11 @@ function RouteComponent() {
   const qc = useQueryClient();
   const transfertVersementService = new TransfertVersementService();
   const userService = new UserService();
+  const recouvreurService = new RecouvreurService();
   
   const transfertsRecusKey = ['transferts-recouvreur', session?.user?.id];
   const transfertsEnvoyesKey = ['transferts-envoyes-recouvreur', session?.user?.id];
+  const soldeRecouvreurKey = ['solde-recouvreur', session?.user?.id];
   const caissiersPrincipauxKey = ['caissiers-principaux'];
 
   // Transferts reçus des vendeurs (en attente de validation)
@@ -79,6 +82,13 @@ function RouteComponent() {
     queryFn: () => transfertVersementService.findByTypeTransfert(TYPE_TRANSFERT.RECOUVREUR_VERS_CAISSIER_PRINCIPAL),
     enabled: !!session?.user?.id,
   });
+
+  const { data: soldeRecouvreur, isLoading: isLoadingSoldeRecouvreur } = useQuery({
+    queryKey: soldeRecouvreurKey,
+    queryFn: () => recouvreurService.getSolde(session!.user.id),
+    enabled: !!session?.user?.id,
+  });
+
 
   // Liste des caissiers principaux
   const { data: caissiersPrincipaux, isLoading: isLoadingCaissiers } = useQuery<User[]>({
@@ -120,15 +130,14 @@ function RouteComponent() {
       setSelectedCaissier(undefined);
       setNoteTransfert('');
       qc.invalidateQueries({ queryKey: transfertsEnvoyesKey });
+      qc.invalidateQueries({ queryKey: soldeRecouvreurKey });
     },
     onError: (error: any) => {
       message.error(error?.response?.data?.message || 'Erreur lors du transfert');
     }
   });
 
-  // Calcul du solde disponible (transferts validés - transferts envoyés validés)
-  const soldeDisponible = (transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0)
-    - (transfertsEnvoyes?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE && typeof t.expediteur === 'object' && t.expediteur._id === session?.user?.id).reduce((acc, t) => acc + t.montant, 0) || 0);
+  const soldeDisponible = soldeRecouvreur || 0;
 
   const handleTransfert = () => {
     if (!montantTransfert || montantTransfert <= 0) {
@@ -154,14 +163,18 @@ function RouteComponent() {
     createTransfert(transfertData);
   };
 
-  // Filtrer les transferts selon l'onglet actif
-  const transfertsEnAttenteRecus = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE) || [];
-  const transfertsValidesRecus = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE) || [];
-  const transfertsRefusesRecus = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.REFUSE) || [];
-
-  const mesTransfertsEnvoyes = transfertsEnvoyes?.filter(t => 
-    typeof t.expediteur === 'object' && t.expediteur._id === session?.user?.id
+  const transfertsRecusDesVendeurs = transfertsRecus?.filter(
+    t => t.destination_type_acteur !== 'CAISSIER_PRINCIPAL'
   ) || [];
+
+  // Filtrer les transferts selon l'onglet actif
+  const transfertsEnAttenteRecus = transfertsRecusDesVendeurs.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE);
+  const transfertsValidesRecus = transfertsRecusDesVendeurs.filter(t => t.etat === ETAT_TRANSFERT.VALIDE);
+  const transfertsRefusesRecus = transfertsRecusDesVendeurs.filter(t => t.etat === ETAT_TRANSFERT.REFUSE);
+
+  const transfertsEnAttenteEnvoyes = transfertsEnvoyes?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE) || [];
+  const transfertsValidesEnvoyes = transfertsEnvoyes?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE) || [];
+  const transfertsRefusesEnvoyes = transfertsEnvoyes?.filter(t => t.etat === ETAT_TRANSFERT.REFUSE) || [];
 
   const columnsTransfertsRecus = [
     {
@@ -173,7 +186,7 @@ function RouteComponent() {
     },
     {
       title: 'Vendeur',
-      dataIndex: 'source_acteur_id',
+      dataIndex: 'source_acteur_name',
       key: 'expediteur',
       width: '25%',
       render: (exp: any) => (
@@ -259,7 +272,7 @@ function RouteComponent() {
     },
     {
       title: 'Caissier Principal',
-      dataIndex: 'destinataire',
+      dataIndex: 'destination_acteur_name',
       key: 'destinataire',
       width: '25%',
       render: (dest: any) => (
@@ -295,7 +308,7 @@ function RouteComponent() {
   ];
 
   return (
-    <Spin spinning={isLoadingTransfertsRecus || isLoadingTransfertsEnvoyes || isPendingValider || isPendingRefuser}>
+    <Spin spinning={isLoadingTransfertsRecus || isLoadingTransfertsEnvoyes || isLoadingSoldeRecouvreur || isPendingValider || isPendingRefuser}>
       <div className="controller-page">
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* Hero Header */}
@@ -481,7 +494,7 @@ function RouteComponent() {
               >
                 <Statistic
                   title={<span className="text-blue-700 font-medium">Transferts en attente</span>}
-                  value={mesTransfertsEnvoyes.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length}
+                  value={transfertsEnvoyes?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length || 0}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.5rem', fontWeight: 700 }}
                 />
               </Card>
@@ -494,7 +507,7 @@ function RouteComponent() {
               >
                 <Statistic
                   title={<span className="text-emerald-700 font-medium">Transferts validés</span>}
-                  value={mesTransfertsEnvoyes.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length}
+                  value={transfertsEnvoyes?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length || 0}
                   valueStyle={{ color: '#16a34a', fontSize: '1.5rem', fontWeight: 700 }}
                 />
               </Card>
@@ -507,7 +520,7 @@ function RouteComponent() {
               >
                 <Statistic
                   title={<span className="text-emerald-700 font-medium">Montant total transféré</span>}
-                  value={mesTransfertsEnvoyes.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0)}
+                  value={transfertsEnvoyes?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0}
                   formatter={(value) => formatMontant(Number(value))}
                   valueStyle={{ color: '#16a34a', fontSize: '1.5rem', fontWeight: 700 }}
                 />
@@ -515,13 +528,66 @@ function RouteComponent() {
             </Col>
           </Row>
           
-          <Table
-            className="controller-table"
-            columns={columnsTransfertsEnvoyes}
-            dataSource={mesTransfertsEnvoyes}
-            rowKey="_id"
-            pagination={{ pageSize: 5 }}
-            scroll={{ x: 600 }}
+          <Tabs
+            items={[
+              {
+                key: 'envoyes_en_attente',
+                label: (
+                  <Space>
+                    <ClockCircleOutlined />
+                    En attente ({transfertsEnAttenteEnvoyes.length})
+                  </Space>
+                ),
+                children: (
+                  <Table
+                    className="controller-table"
+                    columns={columnsTransfertsEnvoyes}
+                    dataSource={transfertsEnAttenteEnvoyes}
+                    rowKey="_id"
+                    pagination={{ pageSize: 5 }}
+                    scroll={{ x: 600 }}
+                  />
+                ),
+              },
+              {
+                key: 'envoyes_valides',
+                label: (
+                  <Space>
+                    <CheckCircleOutlined />
+                    Validés ({transfertsValidesEnvoyes.length})
+                  </Space>
+                ),
+                children: (
+                  <Table
+                    className="controller-table"
+                    columns={columnsTransfertsEnvoyes}
+                    dataSource={transfertsValidesEnvoyes}
+                    rowKey="_id"
+                    pagination={{ pageSize: 5 }}
+                    scroll={{ x: 600 }}
+                  />
+                ),
+              },
+              {
+                key: 'envoyes_refuses',
+                label: (
+                  <Space>
+                    <CloseCircleOutlined />
+                    Refusés ({transfertsRefusesEnvoyes.length})
+                  </Space>
+                ),
+                children: (
+                  <Table
+                    className="controller-table"
+                    columns={columnsTransfertsEnvoyes}
+                    dataSource={transfertsRefusesEnvoyes}
+                    rowKey="_id"
+                    pagination={{ pageSize: 5 }}
+                    scroll={{ x: 600 }}
+                  />
+                ),
+              },
+            ]}
           />
         </Card>
       </Space>

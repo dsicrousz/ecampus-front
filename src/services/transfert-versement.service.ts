@@ -22,7 +22,7 @@ export class TransfertVersementService extends Service {
     return this.api.post(`/${this.ressource}/recouvreur-caissier-principal`, data).then((res) => res.data);
   }
 
-  async createCaissierPrincipalAgentComptable(data: TransfertCaissierPrincipalAgentComptableDto): Promise<TransfertVersement> {
+  async createCaissierPrincipalAgentComptable(data: TransfertCaissierPrincipalAgentComptableDto): Promise<number> {
     return this.api.post(`/${this.ressource}/caissier-principal-agent-comptable`, data).then((res) => res.data);
   }
 

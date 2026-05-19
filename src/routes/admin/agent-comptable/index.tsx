@@ -34,7 +34,7 @@ import { useState } from 'react';
 import dayjs from '@/config/dayjs.config';
 import { authClient } from '@/auth/auth-client';
 import type { TransfertVersement } from '@/types/transfert-versement';
-import { EtatTransfertColors, EtatTransfertLabels, ETAT_TRANSFERT, TYPE_TRANSFERT } from '@/types/transfert-versement';
+import { EtatTransfertColors, EtatTransfertLabels, ETAT_TRANSFERT, TYPE_ACTEUR } from '@/types/transfert-versement';
 import type { User } from '@/types/user';
 import { formatMontant } from '@/types/operation';
 import { USER_ROLE } from '@/types/user.roles';
@@ -78,19 +78,19 @@ function RouteComponent() {
   // Liste des vendeurs
   const { data: vendeurs, isLoading: isLoadingVendeurs } = useQuery<User[]>({
     queryKey: vendeursKey,
-    queryFn: () => userService.byRole('vendeur'),
+    queryFn: () => userService.byRole(USER_ROLE.VENDEUR),
   });
 
   // Liste des recouvreurs
   const { data: recouvreurs, isLoading: isLoadingRecouvreurs } = useQuery<User[]>({
     queryKey: recouvreursKey,
-    queryFn: () => userService.byRole('recouvreur'),
+    queryFn: () => userService.byRole(USER_ROLE.RECOUVREUR),
   });
 
   // Liste des caissiers principaux
   const { data: caissiersPrincipaux, isLoading: isLoadingCaissiers } = useQuery<User[]>({
     queryKey: caissiersPrincipauxKey,
-    queryFn: () => userService.byRole('caissier_principal'),
+    queryFn: () => userService.byRole(USER_ROLE.CAISSIER),
   });
 
   // Soldes des vendeurs
@@ -124,17 +124,21 @@ function RouteComponent() {
   });
 
   // Calcul du solde total reçu
-  const soldeTotal = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0;
+  const transfertsRecusAgentComptable = transfertsRecus?.filter(
+    t => t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE
+  ) || [];
+
+  const soldeTotal = transfertsRecusAgentComptable.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0;
 
   // Filtrer les transferts selon l'onglet actif
-  const transfertsEnAttenteRecus = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE) || [];
-  const transfertsValidesRecus = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE) || [];
-  const transfertsRefusesRecus = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.REFUSE) || [];
+  const transfertsEnAttenteRecus = transfertsRecusAgentComptable.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE);
+  const transfertsValidesRecus = transfertsRecusAgentComptable.filter(t => t.etat === ETAT_TRANSFERT.VALIDE);
+  const transfertsRefusesRecus = transfertsRecusAgentComptable.filter(t => t.etat === ETAT_TRANSFERT.REFUSE);
 
   // Statistiques globales
-  const totalTransfertsVendeurRecouvreur = allTransferts?.filter(t => t.typeTransfert === TYPE_TRANSFERT.VENDEUR_VERS_RECOUVREUR && t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0;
-  const totalTransfertsRecouvreurCaissier = allTransferts?.filter(t => t.typeTransfert === TYPE_TRANSFERT.RECOUVREUR_VERS_CAISSIER_PRINCIPAL && t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0;
-  const totalTransfertsCaissierAgent = allTransferts?.filter(t => t.typeTransfert === TYPE_TRANSFERT.CAISSIER_PRINCIPAL_VERS_AGENT_COMPTABLE && t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0;
+  const totalTransfertsVendeurRecouvreur = allTransferts?.filter(t => t.source_type_acteur === TYPE_ACTEUR.VENDEUR && t.destination_type_acteur === TYPE_ACTEUR.RECOUVREUR && t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0;
+  const totalTransfertsRecouvreurCaissier = allTransferts?.filter(t => t.source_type_acteur === TYPE_ACTEUR.RECOUVREUR && t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL && t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0;
+  const totalTransfertsCaissierAgent = allTransferts?.filter(t => t.source_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL && t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE && t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0;
 
   const columnsTransfertsRecus = [
     {
@@ -146,13 +150,13 @@ function RouteComponent() {
     },
     {
       title: 'Caissier Principal',
-      dataIndex: 'expediteur',
+      dataIndex: 'source_acteur_name',
       key: 'expediteur',
       width: '25%',
       render: (exp: any) => (
         <Space>
           <Avatar size="small" icon={<UserOutlined />} />
-          <Text strong>{typeof exp === 'object' ? `${exp.prenom} ${exp.nom}` : exp}</Text>
+          <Text strong>{exp || '-'}</Text>
         </Space>
       ),
     },
@@ -161,7 +165,7 @@ function RouteComponent() {
       dataIndex: 'montant',
       key: 'montant',
       width: '20%',
-      render: (montant: number) => <Text strong style={{ color: '#52c41a' }}>{formatMontant(montant)}</Text>,
+      render: (montant: number) => <Text strong style={{ color: '#16a34a' }}>{formatMontant(montant)}</Text>,
     },
     {
       title: 'Note',
@@ -198,7 +202,7 @@ function RouteComponent() {
                 size="small" 
                 icon={<CheckOutlined />}
                 loading={isPendingValider}
-                style={{ background: '#52c41a', borderColor: '#52c41a' }}
+                style={{ background: '#16a34a', borderColor: '#16a34a' }}
               />
             </Popconfirm>
             <Popconfirm
@@ -335,7 +339,7 @@ function RouteComponent() {
                   valueStyle={{ color: '#f97316', fontSize: '1.5rem', fontWeight: 700 }}
                 />
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  {allTransferts?.filter(t => t.typeTransfert === TYPE_TRANSFERT.VENDEUR_VERS_RECOUVREUR && t.etat === ETAT_TRANSFERT.VALIDE).length || 0} transferts validés
+                  {allTransferts?.filter(t => t.source_type_acteur === TYPE_ACTEUR.VENDEUR && t.destination_type_acteur === TYPE_ACTEUR.RECOUVREUR && t.etat === ETAT_TRANSFERT.VALIDE).length || 0} transferts validés
                 </Text>
               </Card>
             </Col>
@@ -352,7 +356,7 @@ function RouteComponent() {
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.5rem', fontWeight: 700 }}
                 />
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  {allTransferts?.filter(t => t.typeTransfert === TYPE_TRANSFERT.RECOUVREUR_VERS_CAISSIER_PRINCIPAL && t.etat === ETAT_TRANSFERT.VALIDE).length || 0} transferts validés
+                  {allTransferts?.filter(t => t.source_type_acteur === TYPE_ACTEUR.RECOUVREUR && t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL && t.etat === ETAT_TRANSFERT.VALIDE).length || 0} transferts validés
                 </Text>
               </Card>
             </Col>
@@ -369,7 +373,7 @@ function RouteComponent() {
                   valueStyle={{ color: '#9333ea', fontSize: '1.5rem', fontWeight: 700 }}
                 />
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  {allTransferts?.filter(t => t.typeTransfert === TYPE_TRANSFERT.CAISSIER_PRINCIPAL_VERS_AGENT_COMPTABLE && t.etat === ETAT_TRANSFERT.VALIDE).length || 0} transferts validés
+                  {allTransferts?.filter(t => t.source_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL && t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE && t.etat === ETAT_TRANSFERT.VALIDE).length || 0} transferts validés
                 </Text>
               </Card>
             </Col>
@@ -435,10 +439,11 @@ function RouteComponent() {
                     key: 'recu',
                     render: (_: any, record: User) => {
                       const totalRecu = allTransferts?.filter(
-                        t => t.typeTransfert === TYPE_TRANSFERT.VENDEUR_VERS_RECOUVREUR &&
+                        t => t.source_type_acteur === TYPE_ACTEUR.VENDEUR &&
+                        t.destination_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
                         t.etat === ETAT_TRANSFERT.VALIDE && 
-                        typeof t.destinataire === 'object' && 
-                        t.destinataire._id === record._id
+                        typeof t.destination_acteur_id === 'object' && 
+                        t.destination_acteur_id._id === record._id
                       ).reduce((acc, t) => acc + t.montant, 0) || 0;
                       return <Text style={{ color: '#16a34a' }}>{formatMontant(totalRecu)}</Text>;
                     },
@@ -472,10 +477,11 @@ function RouteComponent() {
                     key: 'recu',
                     render: (_: any, record: User) => {
                       const totalRecu = allTransferts?.filter(
-                        t => t.typeTransfert === TYPE_TRANSFERT.RECOUVREUR_VERS_CAISSIER_PRINCIPAL &&
+                        t => t.source_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
+                        t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
                         t.etat === ETAT_TRANSFERT.VALIDE && 
-                        typeof t.destinataire === 'object' && 
-                        t.destinataire._id === record._id
+                        typeof t.destination_acteur_id === 'object' && 
+                        t.destination_acteur_id._id === record._id
                       ).reduce((acc, t) => acc + t.montant, 0) || 0;
                       return <Text style={{ color: '#16a34a' }}>{formatMontant(totalRecu)}</Text>;
                     },

@@ -1,12 +1,16 @@
 import Api from "./Api";
 import { Service } from "./Service";
 
-export class CaissierService extends Service {
+export interface SoldeCaissierPrincipal {
+  solde: number;
+}
+
+export class CaissierService extends Service<SoldeCaissierPrincipal> {
   constructor() {
-    super(Api, 'soldecaissier');
+    super(Api, 'solde-caissier-principal');
   }
 
-  async getSolde(id: string | number): Promise<any> {
-    return this.api.get(`/${this.ressource}/caissier/${id}`).then((res: any) => res.data);
+  async getSolde(id: string | number): Promise<number> {
+    return this.api.get(`/${this.ressource}/caissier-principal/${id}/solde`).then((res: any) => res.data);
   }
 }

@@ -36,11 +36,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { TransfertVersementService } from '@/services/transfert-versement.service';
 import { UserService } from '@/services/user.service';
 import { VendeurService } from '@/services/vendeurservice';
+import { CaissierService } from '@/services/caissierservice';
+import { RecouvreurService } from '@/services/recouvreurservice';
 import { useState } from 'react';
 import dayjs from '@/config/dayjs.config';
 import { authClient } from '@/auth/auth-client';
 import type { TransfertVersement, TransfertCaissierPrincipalAgentComptableDto } from '@/types/transfert-versement';
-import { EtatTransfertColors, EtatTransfertLabels, ETAT_TRANSFERT, TYPE_TRANSFERT } from '@/types/transfert-versement';
+import { EtatTransfertColors, EtatTransfertLabels, ETAT_TRANSFERT, TYPE_ACTEUR, TYPE_TRANSFERT } from '@/types/transfert-versement';
 import type { User } from '@/types/user';
 import { formatMontant } from '@/types/operation';
 import { USER_ROLE } from '@/types/user.roles';
@@ -63,9 +65,12 @@ function RouteComponent() {
   const qc = useQueryClient();
   const transfertVersementService = new TransfertVersementService();
   const userService = new UserService();
+  const caissierService = new CaissierService();
+  const recouvreurService = new RecouvreurService();
   
   const transfertsRecusKey = ['transferts-caissier-principal', session?.user?.id];
   const transfertsEnvoyesKey = ['transferts-envoyes-caissier-principal', session?.user?.id];
+  const soldeCaissierPrincipalKey = ['solde-caissier-principal', session?.user?.id];
   const agentsComptablesKey = ['agents-comptables'];
   const vendeursKey = ['vendeurs'];
   const recouvreursKey = ['recouvreurs'];
@@ -86,6 +91,14 @@ function RouteComponent() {
     queryFn: () => transfertVersementService.findByTypeTransfert(TYPE_TRANSFERT.CAISSIER_PRINCIPAL_VERS_AGENT_COMPTABLE),
     enabled: !!session?.user?.id,
   });
+
+  const { data: soldeCaissierPrincipal, isLoading: isLoadingSoldeCaissierPrincipal } = useQuery({
+    queryKey: soldeCaissierPrincipalKey,
+    queryFn: () => caissierService.getSolde(session!.user.id),
+    enabled: !!session?.user?.id,
+  });
+
+  console.log(soldeCaissierPrincipal);
 
   // Liste des agents comptables
   const { data: agentsComptables, isLoading: isLoadingAgents } = useQuery<User[]>({
@@ -145,6 +158,7 @@ function RouteComponent() {
       setSelectedAgentComptable(undefined);
       setNoteTransfert('');
       qc.invalidateQueries({ queryKey: transfertsEnvoyesKey });
+      qc.invalidateQueries({ queryKey: soldeCaissierPrincipalKey });
     },
     onError: (error: any) => {
       message.error(error?.response?.data?.message || 'Erreur lors du transfert');
@@ -152,8 +166,14 @@ function RouteComponent() {
   });
 
   // Calcul du solde disponible (transferts validés - transferts envoyés validés)
-  const soldeDisponible = (transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0)
-    - (transfertsEnvoyes?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE && typeof t.expediteur === 'object' && t.expediteur._id === session?.user?.id).reduce((acc, t) => acc + t.montant, 0) || 0);
+  const transfertsRecusRecouvreurs = transfertsRecus?.filter(
+    t => t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL
+  ) || [];
+  const mesTransfertsEnvoyes = transfertsEnvoyes?.filter(
+    t => t.source_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL && t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE
+  ) || [];
+
+  const soldeDisponible = soldeCaissierPrincipal|| 0;
 
   const handleTransfert = () => {
     if (!montantTransfert || montantTransfert <= 0) {
@@ -180,13 +200,13 @@ function RouteComponent() {
   };
 
   // Filtrer les transferts selon l'onglet actif
-  const transfertsEnAttenteRecus = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE) || [];
-  const transfertsValidesRecus = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE) || [];
-  const transfertsRefusesRecus = transfertsRecus?.filter(t => t.etat === ETAT_TRANSFERT.REFUSE) || [];
+  const transfertsEnAttenteRecus = transfertsRecusRecouvreurs.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE);
+  const transfertsValidesRecus = transfertsRecusRecouvreurs.filter(t => t.etat === ETAT_TRANSFERT.VALIDE);
+  const transfertsRefusesRecus = transfertsRecusRecouvreurs.filter(t => t.etat === ETAT_TRANSFERT.REFUSE);
 
-  const mesTransfertsEnvoyes = transfertsEnvoyes?.filter(t => 
-    typeof t.expediteur === 'object' && t.expediteur._id === session?.user?.id
-  ) || [];
+  const transfertsEnAttenteEnvoyes = mesTransfertsEnvoyes.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE);
+  const transfertsValidesEnvoyes = mesTransfertsEnvoyes.filter(t => t.etat === ETAT_TRANSFERT.VALIDE);
+  const transfertsRefusesEnvoyes = mesTransfertsEnvoyes.filter(t => t.etat === ETAT_TRANSFERT.REFUSE);
 
   const columnsTransfertsRecus = [
     {
@@ -198,13 +218,13 @@ function RouteComponent() {
     },
     {
       title: 'Recouvreur',
-      dataIndex: 'expediteur',
+      dataIndex: 'source_acteur_name',
       key: 'expediteur',
       width: '25%',
       render: (exp: any) => (
         <Space>
           <Avatar size="small" icon={<UserOutlined />} />
-          <Text strong>{typeof exp === 'object' ? `${exp.prenom} ${exp.nom}` : exp}</Text>
+          <Text strong>{exp || '-'}</Text>
         </Space>
       ),
     },
@@ -213,7 +233,7 @@ function RouteComponent() {
       dataIndex: 'montant',
       key: 'montant',
       width: '20%',
-      render: (montant: number) => <Text strong style={{ color: '#52c41a' }}>{formatMontant(montant)}</Text>,
+      render: (montant: number) => <Text strong style={{ color: '#16a34a' }}>{formatMontant(montant)}</Text>,
     },
     {
       title: 'Note',
@@ -250,7 +270,7 @@ function RouteComponent() {
                 size="small" 
                 icon={<CheckOutlined />}
                 loading={isPendingValider}
-                style={{ background: '#52c41a', borderColor: '#52c41a' }}
+                style={{ background: '#16a34a', borderColor: '#16a34a' }}
               />
             </Popconfirm>
             <Popconfirm
@@ -284,13 +304,13 @@ function RouteComponent() {
     },
     {
       title: 'Agent Comptable',
-      dataIndex: 'destinataire',
+      dataIndex: 'destination_acteur_name',
       key: 'destinataire',
       width: '25%',
       render: (dest: any) => (
         <Space>
           <Avatar size="small" icon={<UserOutlined />} />
-          <Text strong>{typeof dest === 'object' ? `${dest.prenom} ${dest.nom}` : dest}</Text>
+          <Text strong>{dest || '-'}</Text>
         </Space>
       ),
     },
@@ -320,7 +340,7 @@ function RouteComponent() {
   ];
 
   return (
-    <Spin spinning={isLoadingTransfertsRecus || isLoadingTransfertsEnvoyes || isPendingValider || isPendingRefuser}>
+    <Spin spinning={isLoadingTransfertsRecus || isLoadingTransfertsEnvoyes || isLoadingSoldeCaissierPrincipal || isPendingValider || isPendingRefuser}>
       <div className="controller-page">
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* Hero Header */}
@@ -478,17 +498,7 @@ function RouteComponent() {
                     title: 'Solde estimé',
                     key: 'solde',
                     render: (_: any, record: User) => {
-                      const transfertsValides = transfertsRecus?.filter(
-                        t => t.etat === ETAT_TRANSFERT.VALIDE && 
-                        typeof t.expediteur === 'object' && 
-                        t.expediteur._id === record._id
-                      ) || [];
-                      const totalRecu = transfertsValides.reduce((acc, t) => acc + t.montant, 0);
-                      return (
-                        <Text strong style={{ color: totalRecu > 0 ? '#16a34a' : '#8c8c8c' }}>
-                          {formatMontant(totalRecu)}
-                        </Text>
-                      );
+                      return <SoldeRecouvreurCell recouvreurId={record._id} recouvreurService={recouvreurService} />;
                     },
                   },
                 ]}
@@ -629,13 +639,66 @@ function RouteComponent() {
             </Col>
           </Row>
           
-          <Table
-            className="controller-table"
-            columns={columnsTransfertsEnvoyes}
-            dataSource={mesTransfertsEnvoyes}
-            rowKey="_id"
-            pagination={{ pageSize: 5 }}
-            scroll={{ x: 600 }}
+          <Tabs
+            items={[
+              {
+                key: 'envoyes_en_attente',
+                label: (
+                  <Space>
+                    <ClockCircleOutlined />
+                    En attente ({transfertsEnAttenteEnvoyes.length})
+                  </Space>
+                ),
+                children: (
+                  <Table
+                    className="controller-table"
+                    columns={columnsTransfertsEnvoyes}
+                    dataSource={transfertsEnAttenteEnvoyes}
+                    rowKey="_id"
+                    pagination={{ pageSize: 5 }}
+                    scroll={{ x: 600 }}
+                  />
+                ),
+              },
+              {
+                key: 'envoyes_valides',
+                label: (
+                  <Space>
+                    <CheckCircleOutlined />
+                    Validés ({transfertsValidesEnvoyes.length})
+                  </Space>
+                ),
+                children: (
+                  <Table
+                    className="controller-table"
+                    columns={columnsTransfertsEnvoyes}
+                    dataSource={transfertsValidesEnvoyes}
+                    rowKey="_id"
+                    pagination={{ pageSize: 5 }}
+                    scroll={{ x: 600 }}
+                  />
+                ),
+              },
+              {
+                key: 'envoyes_refuses',
+                label: (
+                  <Space>
+                    <CloseCircleOutlined />
+                    Refusés ({transfertsRefusesEnvoyes.length})
+                  </Space>
+                ),
+                children: (
+                  <Table
+                    className="controller-table"
+                    columns={columnsTransfertsEnvoyes}
+                    dataSource={transfertsRefusesEnvoyes}
+                    rowKey="_id"
+                    pagination={{ pageSize: 5 }}
+                    scroll={{ x: 600 }}
+                  />
+                ),
+              },
+            ]}
           />
         </Card>
       </Space>
@@ -816,5 +879,30 @@ function RouteComponent() {
         </Space>
       </Modal>
     </Spin>
+  );
+}
+
+function SoldeRecouvreurCell({
+  recouvreurId,
+  recouvreurService,
+}: {
+  recouvreurId: string;
+  recouvreurService: RecouvreurService;
+}) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['solde-recouvreur', recouvreurId],
+    queryFn: () => recouvreurService.getSolde(recouvreurId),
+    enabled: !!recouvreurId,
+  });
+
+
+  if (isLoading) {
+    return <Text type="secondary">Chargement...</Text>;
+  }
+
+  return (
+    <Text strong style={{ color: data && data > 0 ? '#16a34a' : '#8c8c8c' }}>
+      {formatMontant(data || 0)}
+    </Text>
   );
 }

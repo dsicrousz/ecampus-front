@@ -31,6 +31,12 @@ export interface TransfertVersement {
   etat: ETAT_TRANSFERT;
   montant: number;
   note?: string;
+  source_type_acteur?: TYPE_ACTEUR;
+  destination_type_acteur?: TYPE_ACTEUR;
+  source_acteur_id?: Acteur | string;
+  destination_acteur_id?: Acteur | string;
+  source_acteur_name?: string;
+  destination_acteur_name?: string;
   
   expediteur: Acteur | string;
   destinataire: Acteur | string;

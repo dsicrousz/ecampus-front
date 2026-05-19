@@ -62,9 +62,6 @@ import { QUERY_KEYS, queryKeys } from '@/constants';
 const { RangePicker } = DatePicker;
 const { Title, Text } = Typography;
 
-interface SoldeData {
-  solde: number;
-}
 
 interface RechargeData {
   compte: string;
@@ -145,7 +142,7 @@ function RouteComponent() {
     return opDate.isAfter(timeFilter[0]) && opDate.isBefore(timeFilter[1]);
   }) || [];
 
-  const { data: soldeData, isLoading: isLoadingSolde } = useQuery<SoldeData>({
+  const { data: soldeData, isLoading: isLoadingSolde } = useQuery<number>({
     queryKey: soldeVendeurKey,
     queryFn: () => vendeurService.getSolde(session!.user.id),
     enabled: !!session?.user?.id,
@@ -228,7 +225,7 @@ function RouteComponent() {
       message.warning('Veuillez sélectionner un recouvreur');
       return;
     }
-    if (montantTransfert > (soldeData?.solde || 0)) {
+    if (montantTransfert > (soldeData || 0)) {
       message.warning('Montant supérieur à votre solde disponible');
       return;
     }
@@ -482,7 +479,7 @@ function RouteComponent() {
                 </Text>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className="text-3xl font-black tracking-tight text-slate-900">
-                    {formatMontant(soldeData?.solde || 0)}
+                    {formatMontant(soldeData || 0)}
                   </span>
                 </div>
               </div>
@@ -747,13 +744,13 @@ function RouteComponent() {
               },
               {
                 title: 'Recouvreur',
-                dataIndex: 'destinataire',
-                key: 'destinataire',
+                dataIndex: 'destination_acteur_name',
+                key: 'destination_acteur_name',
                 width: '25%',
                 render: (dest: any) => (
                   <Space>
                     <UserOutlined />
-                    <Text strong>{typeof dest === 'object' ? `${dest.prenom} ${dest.nom}` : dest}</Text>
+                    <Text strong>{dest}</Text>
                   </Space>
                 ),
               },
@@ -1073,7 +1070,7 @@ function RouteComponent() {
               <Col flex="auto">
                 <Text type="secondary" style={{ fontSize: 12 }}>Votre solde disponible</Text>
                 <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-                  {formatMontant(soldeData?.solde || 0)}
+                  {formatMontant(soldeData || 0)}
                 </Title>
               </Col>
             </Row>
@@ -1113,7 +1110,7 @@ function RouteComponent() {
             <InputNumber
               size="large"
               min={1}
-              max={soldeData?.solde || 0}
+              max={soldeData || 0}
               step={100}
               placeholder="Entrez le montant"
               value={montantTransfert}
@@ -1123,7 +1120,7 @@ function RouteComponent() {
               formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
             />
             <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
-              Maximum: {formatMontant(soldeData?.solde || 0)}
+              Maximum: {formatMontant(soldeData || 0)}
             </Text>
           </div>
 
@@ -1184,7 +1181,7 @@ function RouteComponent() {
                   </Col>
                   <Col>
                     <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-                      {formatMontant((soldeData?.solde || 0) - montantTransfert)}
+                      {formatMontant((soldeData|| 0) - montantTransfert)}
                     </Title>
                   </Col>
                 </Row>
