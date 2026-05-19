@@ -152,7 +152,7 @@ function RouteComponent() {
                   Mon solde vendeur
                 </p>
                 <p className="mt-1 text-3xl font-black tracking-tight text-slate-900">
-                  {formatMontant(soldeData?.solde || 0)}
+                  {formatMontant(soldeData|| 0)}
                 </p>
               </div>
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-200">
