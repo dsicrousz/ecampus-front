@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { requireRole } from '@/lib/route-protection';
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Spin, Table, Input, Space, Card, Avatar, Typography, Row, Col, Statistic, Button } from "antd";
 import { SearchOutlined, UserOutlined } from "@ant-design/icons";
 import { EtudiantService } from "@/services/etudiant.service";
@@ -16,14 +16,21 @@ const PAGE_SIZE = 15
 
 export const Route = createFileRoute('/admin/etudiants/')({
   beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
+  validateSearch: (search: Record<string, unknown>) => {
+    const rawPage = Number(search.page)
+    return {
+      page: Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1,
+    }
+  },
   component: RouteComponent,
 })
 
 function RouteComponent() {
-  const navigate = useNavigate()
+  const navigate = Route.useNavigate()
+  const goTo = useNavigate()
+  const { page } = Route.useSearch()
   const etudiantService = new EtudiantService()
   const [searchText, setSearchText] = useState('')
-  const [page, setPage] = useState(1)
   
   const { data: etudiants, isLoading } = useQuery({ 
     queryKey: ['etudiants'], 
@@ -43,14 +50,22 @@ function RouteComponent() {
     )
   }, [etudiants, searchText])
 
-  // Paginer les résultats
-  const paginatedEtudiants = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE
-    const end = start + PAGE_SIZE
-    return filteredEtudiants.slice(start, end)
-  }, [filteredEtudiants, page])
+  const sortedEtudiants = useMemo(() => {
+    return [...filteredEtudiants].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+  }, [filteredEtudiants])
 
-  const totalPages = Math.ceil(filteredEtudiants.length / PAGE_SIZE)
+  const totalPages = Math.max(1, Math.ceil(filteredEtudiants.length / PAGE_SIZE))
+
+  useEffect(() => {
+    if (page > totalPages) {
+      navigate({
+        search: { page: totalPages },
+        replace: true,
+      })
+    }
+  }, [page, totalPages, navigate])
 
   const columns: ColumnsType<Etudiant> = [
     {
@@ -105,7 +120,7 @@ function RouteComponent() {
           <Button 
             type="primary" 
             icon={<SearchOutlined />} 
-            onClick={() => navigate({ to: `/admin/etudiants/${record._id}` })}
+            onClick={() => goTo({ to: '/admin/etudiants/$etudiantId', params: { etudiantId: record._id } })}
           >
             Voir
           </Button>
@@ -144,7 +159,9 @@ function RouteComponent() {
                   value={searchText}
                   onChange={(e) => {
                     setSearchText(e.target.value);
-                    setPage(1);
+                    navigate({
+                      search: { page: 1 },
+                    })
                   }}
                   allowClear
                   style={{ width: 300 }}
@@ -192,13 +209,17 @@ function RouteComponent() {
             <Table
               className="controller-table"
               columns={columns}
-              dataSource={paginatedEtudiants}
+              dataSource={sortedEtudiants}
               rowKey="_id"
               pagination={{
                 current: page,
                 pageSize: PAGE_SIZE,
                 total: filteredEtudiants.length,
-                onChange: (p) => setPage(p),
+                onChange: (p) => {
+                  navigate({
+                    search: { page: p },
+                  })
+                },
                 showSizeChanger: false,
                 showQuickJumper: true,
                 showTotal: (total, range) => 

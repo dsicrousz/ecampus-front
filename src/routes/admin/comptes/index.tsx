@@ -1,18 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Spin, Table, Button, Input, Space, Card, Row, Col, Statistic, Typography, Tag } from "antd";
 import { FolderOutlined, SearchOutlined, CheckCircleOutlined, WalletOutlined } from "@ant-design/icons";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { requireRole } from '@/lib/route-protection';
 import { CompteService } from "@/services/compte.service";
 import type { Compte } from "@/types/compte";
-import type { ColumnsType } from "antd/es/table";
+import type { ColumnsType } from 'antd/es/table';
 import { USER_ROLE } from '@/types/user.roles';
 
 const { Title, Text } = Typography;
 
 export const Route = createFileRoute('/admin/comptes/')({
   beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
+  validateSearch: (search: Record<string, unknown>) => {
+    const rawPage = Number(search.page)
+    return {
+      page: Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1,
+    }
+  },
   component: RouteComponent,
 })
 
@@ -30,9 +36,10 @@ const formatMontant = (montant: number): string => {
 
 function RouteComponent() {
   const compteService = new CompteService();
-  const navigate = useNavigate();
+  const navigate = Route.useNavigate();
+  const goTo = useNavigate();
+  const { page } = Route.useSearch();
   const [searchText, setSearchText] = useState('');
-  const [page, setPage] = useState(1);
 
   const key = ['comptes'];
   const { data: comptes, isLoading: isLoadingF } = useQuery({ 
@@ -54,12 +61,22 @@ function RouteComponent() {
     );
   }, [comptes, searchText]);
 
-  // Paginer les résultats
-  const paginatedComptes = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    return filteredComptes.slice(start, end);
-  }, [filteredComptes, page]);
+  const sortedComptes = useMemo(() => {
+    return [...filteredComptes].sort(
+      (a, b) => (b.solde || 0) - (a.solde || 0),
+    )
+  }, [filteredComptes])
+
+  const totalPages = Math.max(1, Math.ceil(filteredComptes.length / PAGE_SIZE))
+
+  useEffect(() => {
+    if (page > totalPages) {
+      navigate({
+        search: { page: totalPages },
+        replace: true,
+      })
+    }
+  }, [page, totalPages, navigate])
 
   // Calculate statistics
   const activeAccounts = comptes?.filter((c: Compte) => c.is_actif)?.length || 0;
@@ -100,7 +117,8 @@ function RouteComponent() {
           {formatMontant(solde)}
         </Tag>
       ),
-      sorter: (a, b) => a.solde - b.solde,
+      sorter: (a, b) => (b.solde || 0) - (a.solde || 0),
+      defaultSortOrder: 'descend' as const,
     },
     {
       title: 'État',
@@ -126,7 +144,7 @@ function RouteComponent() {
         <Button
           type="primary"
           icon={<FolderOutlined />}
-          onClick={() => navigate({ to: `/admin/comptes/${record._id}` })}
+          onClick={() => goTo({ to: '/admin/comptes/$compteId', params: { compteId: record._id } })}
         >
           Voir
         </Button>
@@ -164,7 +182,9 @@ function RouteComponent() {
                   value={searchText}
                   onChange={(e) => {
                     setSearchText(e.target.value);
-                    setPage(1);
+                    navigate({
+                      search: { page: 1 },
+                    })
                   }}
                   allowClear
                   style={{ width: 300 }}
@@ -212,13 +232,17 @@ function RouteComponent() {
             <Table
               className="controller-table"
               columns={columns}
-              dataSource={paginatedComptes}
+              dataSource={sortedComptes}
               rowKey="_id"
               pagination={{
                 current: page,
                 pageSize: PAGE_SIZE,
                 total: filteredComptes.length,
-                onChange: (p) => setPage(p),
+                onChange: (p) => {
+                  navigate({
+                    search: { page: p },
+                  })
+                },
                 showSizeChanger: false,
                 showQuickJumper: true,
                 showTotal: (total, range) => 

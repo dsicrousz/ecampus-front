@@ -321,7 +321,7 @@ function RouteComponent() {
             <Button
               type="text"
               icon={<ArrowLeftOutlined />}
-              onClick={() => navigate({to:'/admin/etudiants'})}
+              onClick={() => navigate({to:'/admin/etudiants', search: { page: 1 }})}
               style={{
                 fontSize: 16,
                 height: 40,
