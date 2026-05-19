@@ -8,20 +8,30 @@ import {
   FaUser,
   FaIdCard,
   FaPlus,
+  FaPaperPlane,
+  FaClock,
+  FaCheckCircle,
+  FaHourglassHalf,
+  FaTimesCircle,
 } from 'react-icons/fa';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CompteService } from '@/services/compte.service';
 import { OperationService } from '@/services/operation.service';
 import { VendeurService } from '@/services/vendeurservice';
+import { TransfertVersementService } from '@/services/transfert-versement.service';
 import { useMemo, useState } from 'react';
 import { validate } from 'uuid';
 import { authClient } from '@/auth/auth-client';
 import type { Compte } from '@/types/compte';
+import type { Operation } from '@/types/operation';
+import type { TransfertVersement } from '@/types/transfert-versement';
+import { ETAT_TRANSFERT } from '@/types/transfert-versement';
 import { formatMontant } from '@/types/operation';
 import { env } from '@/env';
 import { cn } from '@/lib/utils';
 import { QUERY_KEYS, queryKeys } from '@/constants';
+import dayjs from '@/config/dayjs.config';
 
 interface RechargeData {
   compte: string;
@@ -46,8 +56,11 @@ function RouteComponent() {
   const vendeurService = useMemo(() => new VendeurService(), []);
   const compteService = useMemo(() => new CompteService(), []);
   const operationService = useMemo(() => new OperationService(), []);
+  const transfertVersementService = useMemo(() => new TransfertVersementService(), []);
   
   const soldeVendeurKey = ['solde', session?.user?.id];
+  const operationKey = ['operations', session?.user?.id];
+  const transfertsKey = ['transferts-vendeur', session?.user?.id];
   const compteKey = qr
     ? queryKeys.compteByCode(qr)
     : ([QUERY_KEYS.COMPTES, 'code', 'pending'] as const);
@@ -62,6 +75,18 @@ function RouteComponent() {
     queryKey: compteKey,
     queryFn: () => compteService.byCode(qr!),
     enabled: qr !== undefined,
+  });
+
+  const { data: operationsData, isLoading: isLoadingOperations } = useQuery<Operation[]>({
+    queryKey: operationKey,
+    queryFn: () => operationService.byAgent(session!.user.id),
+    enabled: !!session?.user?.id,
+  });
+
+  const { data: mesTransferts, isLoading: isLoadingTransferts } = useQuery<TransfertVersement[]>({
+    queryKey: transfertsKey,
+    queryFn: () => transfertVersementService.findByVendeur(session!.user.id),
+    enabled: !!session?.user?.id,
   });
 
   const { mutate: createRecharge, isPending: isPendingRecharge } = useMutation({
@@ -119,7 +144,7 @@ function RouteComponent() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24">
-      <Spin spinning={isLoading || isLoadingSolde || isPendingRecharge}>
+      <Spin spinning={isLoading || isLoadingSolde || isPendingRecharge || isLoadingOperations || isLoadingTransferts}>
         {/* Top bar */}
         <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-3">
@@ -243,6 +268,146 @@ function RouteComponent() {
               </p>
             </section>
           )}
+
+          {/* Section Transferts vers Recouvreur */}
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-50 text-orange-600 ring-1 ring-orange-200">
+                  <FaPaperPlane className="text-sm" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Transferts
+                  </p>
+                  <p className="text-sm font-bold text-slate-900">Vers Recouvreurs</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Statistiques */}
+            <div className="grid grid-cols-3 gap-2 mb-4">
+              <div className="rounded-xl bg-slate-50 p-3 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  En attente
+                </p>
+                <p className="mt-1 text-lg font-black text-orange-600">
+                  {mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length || 0}
+                </p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Validés
+                </p>
+                <p className="mt-1 text-lg font-black text-emerald-600">
+                  {mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length || 0}
+                </p>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3 text-center">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                  Total
+                </p>
+                <p className="mt-1 text-sm font-black text-slate-900">
+                  {formatMontant(mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0)}
+                </p>
+              </div>
+            </div>
+
+            {/* Liste des transferts */}
+            <div className="space-y-2">
+              {mesTransferts && mesTransferts.length > 0 ? (
+                mesTransferts.slice(0, 5).map((transfert) => (
+                  <div
+                    key={transfert._id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-slate-900">
+                        {transfert.destination_acteur_name || 'Recouvreur'}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+                        <FaClock className="text-slate-400" />
+                        {dayjs(transfert.createdAt).format('DD/MM HH:mm')}
+                      </p>
+                      <p className="mt-0.5 text-xs font-semibold text-slate-700">
+                        {formatMontant(transfert.montant)}
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      {transfert.etat === ETAT_TRANSFERT.EN_ATTENTE && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-orange-700 ring-1 ring-orange-200">
+                          <FaHourglassHalf className="text-[8px]" />
+                          En attente
+                        </span>
+                      )}
+                      {transfert.etat === ETAT_TRANSFERT.VALIDE && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+                          <FaCheckCircle className="text-[8px]" />
+                          Validé
+                        </span>
+                      )}
+                      {transfert.etat === ETAT_TRANSFERT.REFUSE && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-red-700 ring-1 ring-red-200">
+                          <FaTimesCircle className="text-[8px]" />
+                          Refusé
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-xs text-slate-500">Aucun transfert</p>
+              )}
+            </div>
+          </section>
+
+          {/* Section Opérations de Recharge */}
+          <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-200">
+                <FaWallet className="text-sm" />
+              </div>
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Historique
+                </p>
+                <p className="text-sm font-bold text-slate-900">Recharges effectuées</p>
+              </div>
+            </div>
+
+            {/* Liste des opérations */}
+            <div className="space-y-2">
+              {operationsData && operationsData.length > 0 ? (
+                operationsData.slice(0, 5).map((operation) => (
+                  <div
+                    key={operation._id}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-slate-900">
+                        {operation.compte?.etudiant?.prenom} {operation.compte?.etudiant?.nom}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+                        <FaClock className="text-slate-400" />
+                        {dayjs(operation.createdAt).format('DD/MM HH:mm')}
+                      </p>
+                      <p className="mt-0.5 text-xs font-semibold text-emerald-600">
+                        +{formatMontant(operation.montant)}
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+                        <FaCheckCircle className="text-[8px]" />
+                        Effectué
+                      </span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center text-xs text-slate-500">Aucune recharge</p>
+              )}
+            </div>
+          </section>
         </main>
 
         {/* Modal Scanner */}

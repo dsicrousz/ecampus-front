@@ -345,6 +345,57 @@ function RouteComponent() {
             )}
           </div>
         </section>
+
+        {/* Historique des opérations - Liste détaillée */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-200">
+              <FaWallet className="text-sm" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                Historique
+              </p>
+              <p className="text-sm font-bold text-slate-900">Opérations effectuées</p>
+            </div>
+          </div>
+
+          {/* Liste des opérations */}
+          <div className="space-y-2">
+            {operations && operations.length > 0 ? (
+              operations.slice(0, 10).map((operation: Operation) => (
+                <div
+                  key={operation._id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-bold text-slate-900">
+                      {operation.compte?.etudiant?.prenom} {operation.compte?.etudiant?.nom}
+                    </p>
+                    <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+                      <FaClock className="text-slate-400" />
+                      {dayjs(operation.createdAt).format('DD/MM HH:mm')}
+                    </p>
+                    <p className="mt-0.5 text-xs font-semibold text-slate-700">
+                      {operation.type}
+                    </p>
+                    <p className="mt-0.5 text-xs font-bold text-emerald-600">
+                      -{operation.montant.toLocaleString('fr-FR')} FCFA
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+                      <FaCheckCircle className="text-[8px]" />
+                      Effectué
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-xs text-slate-500">Aucune opération</p>
+            )}
+          </div>
+        </section>
       </main>
 
      {/* Modal Scanner QR Code */}
