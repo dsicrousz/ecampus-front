@@ -23,8 +23,7 @@ import {
   PlusOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  CalendarOutlined,
-  InfoCircleOutlined
+  CalendarOutlined
 } from '@ant-design/icons';
 import { useState } from "react";
 import dayjs from "@/config/dayjs.config";
@@ -41,15 +40,11 @@ const { TextArea } = Input;
 // Constantes pour les statuts
 const SessionStatusColors: Record<SessionStatus, string> = {
   active: 'green',
-  en_cours: 'blue',
-  a_venir: 'orange',
   terminee: 'default'
 };
 
 const SessionStatusLabels: Record<SessionStatus, string> = {
   active: 'ACTIVE',
-  en_cours: 'EN COURS',
-  a_venir: 'À VENIR',
   terminee: 'TERMINÉE'
 };
 
@@ -60,14 +55,7 @@ const formatSessionDate = (date: string): string => {
 
 const getSessionStatus = (session: Session): SessionStatus => {
   if (session.isActive) return 'active';
-  
-  const now = dayjs();
-  const debut = dayjs(session.dateDebut);
-  const fin = dayjs(session.dateFin);
-  
-  if (now.isBefore(debut)) return 'a_venir';
-  if (now.isAfter(fin)) return 'terminee';
-  return 'en_cours';
+  return 'terminee';
 };
 
 const isValidAnnee = (annee: string): boolean => {
@@ -171,8 +159,7 @@ function RouteComponent() {
   const stats = {
     total: sessions?.length || 0,
     active: sessions?.filter((s: Session) => s.isActive).length || 0,
-    enCours: sessions?.filter((s: Session) => getSessionStatus(s) === 'en_cours').length || 0,
-    aVenir: sessions?.filter((s: Session) => getSessionStatus(s) === 'a_venir').length || 0,
+    terminee: sessions?.filter((s: Session) => getSessionStatus(s) === 'terminee').length || 0,
   };
 
   // Colonnes du tableau
@@ -207,8 +194,6 @@ function RouteComponent() {
       },
       filters: [
         { text: 'Active', value: 'active' },
-        { text: 'En cours', value: 'en_cours' },
-        { text: 'À venir', value: 'a_venir' },
         { text: 'Terminée', value: 'terminee' },
       ],
       onFilter: (value: any, record: Session) => getSessionStatus(record) === value,
@@ -321,20 +306,10 @@ function RouteComponent() {
             <Col xs={24} sm={12} md={6}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title={<span className="text-blue-700 font-medium">En Cours</span>}
-                  value={stats.enCours}
-                  prefix={<InfoCircleOutlined />}
-                  valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={6}>
-              <Card className="controller-stat-card" size="small">
-                <Statistic
-                  title={<span className="text-orange-700 font-medium">À Venir</span>}
-                  value={stats.aVenir}
-                  prefix={<CalendarOutlined />}
-                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
+                  title={<span className="text-slate-700 font-medium">Sessions Terminées</span>}
+                  value={stats.terminee}
+                  prefix={<CloseCircleOutlined />}
+                  valueStyle={{ color: '#64748b', fontSize: '1.75rem', fontWeight: 800 }}
                 />
               </Card>
             </Col>

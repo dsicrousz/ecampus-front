@@ -9,7 +9,7 @@ export type Session = {
   updatedAt?: string
 }
 
-export type SessionStatus = 'active' | 'en_cours' | 'a_venir' | 'terminee'
+export type SessionStatus = 'active' | 'terminee'
 
 export interface SessionFormValues {
   annee: string

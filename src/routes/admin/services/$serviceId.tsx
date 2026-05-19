@@ -498,6 +498,16 @@ function RouteComponent() {
                 }
                 span={2}
               >
+                {service.typeService ? (
+                  <Tag 
+                    color={service.typeService === 'restaurant' ? 'orange' : 'blue'} 
+                    style={{ fontSize: 14, padding: '4px 12px' }}
+                  >
+                    {service.typeService === 'restaurant' ? 'Restaurant' : 'Autre'}
+                  </Tag>
+                ) : (
+                  <Text type="secondary">Non spécifié</Text>
+                )}
               </Descriptions.Item>
 
               <Descriptions.Item 
