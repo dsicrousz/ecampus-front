@@ -33,7 +33,7 @@ function QRCodePage({ id, size = 'default' }: QRCodePageProps) {
   // Définir les tailles selon le paramètre
   const sizeStyles = {
     small: tw('h-16 w-16'),
-    default: tw('h-28 w-28 -mt-4'),
+    default: tw('h-20 w-20'),
     large: tw('h-32 w-32')
   };
   

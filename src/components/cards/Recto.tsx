@@ -34,15 +34,6 @@ const styles = StyleSheet.create({
     height: '100%',
     width: '100%',
   },
-  shadow: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  gradient: {
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  },
 });
 
 function Recto({ compte }: RectoProps) {
@@ -52,161 +43,156 @@ function Recto({ compte }: RectoProps) {
   }
 
   const etudiant = compte.etudiant;
+  const etudiantContact = etudiant as typeof etudiant & {
+    telephone?: string;
+    adresse?: string;
+  };
   return (
     <Document>
-    <Page size={[285, 175]} style={tw('flex')} >
-      <Image src="/bg_recto.png" style={styles.pageBackground} />
-      
-      {/* Container principal avec padding */}
-      <View style={tw("flex flex-col w-full h-full p-3")}>
-        
-        {/* Header avec logos et titre */}
-        <View style={tw('flex flex-col')}>
-          {/* Logos et institution */}
-          <View style={tw('flex flex-row justify-between items-center mb-1')}>
-            <Image src="/logo.png" style={tw('w-12 h-12')} />
-            
-            <View style={tw("flex flex-col items-center flex-1 px-2")}>
-              <Text style={{
-                fontFamily:'Bebas Neue',
-                fontSize:'9px',
-                textAlign:'center',
-                color:'#1e293b',
-                lineHeight: 1.1,
-                fontWeight: 'bold'
-              }}>
-                Centre Régional des Oeuvres Universitaires
-              </Text>
-              <Text style={{
-                fontFamily:'Bebas Neue',
-                fontSize:'9px',
-                textAlign:'center',
-                color:'#1e293b',
-                lineHeight: 1.1,
-                fontWeight: 'bold'
-              }}>
-                Sociales de Ziguinchor (CROUS/Z)
-              </Text>
-            </View>
-            
-            <Image src="/uasz.png" style={tw('w-12 h-12')}/>
+      <Page size={[285, 175]} style={tw('flex')}>
+        <Image src="/bg_recto.png" style={styles.pageBackground} />
+
+        <View style={tw('flex flex-col w-full h-full px-3 py-3')}>
+         <View style={tw('flex flex-row items-center justify-center w-full mb-2')}>
+            <Image src="/logo.png" style={{ width: 40, height: 40 }} />
           </View>
 
-          {/* Titre de la carte avec style amélioré */}
-          <View style={tw('flex flex-row items-center justify-center mb-2')}>
+          <View style={tw('flex flex-col items-center mb-10')}>
             <View style={{
-              backgroundColor: '#2290f0',
-              paddingHorizontal: 20,
-              paddingVertical: 3,
-              borderRadius: 12,
+              backgroundColor: '#0284c7',
+              borderRadius: 10,
+              paddingHorizontal: 16,
+              paddingVertical: 4,
             }}>
               <Text style={{
-                fontFamily:'Bebas Neue',
-                fontSize:'18px',
-                textAlign:"center",
-                color:'#ffffff',
-                letterSpacing: 2,
-                fontWeight: 'bold'
+                fontFamily: 'Bebas Neue',
+                fontSize: '20px',
+                color: '#ffffff',
+                letterSpacing: 1.2,
               }}>
                 CARTE SOCIALE
               </Text>
             </View>
-          </View>
-        </View>
-
-        {/* Section profil étudiant - Centré */}
-        <View style={tw('flex flex-col items-center justify-center w-full mt-2')}>
-          {/* Nom complet */}
-          <View style={{
-            backgroundColor: 'rgba(34, 144, 240, 0.15)',
-            paddingHorizontal: 16,
-            paddingVertical: 6,
-            borderRadius: 10,
-            marginBottom: 8,
-            borderWidth: 1,
+              <View style={{
+            paddingHorizontal: 8,
+            paddingVertical: 4,
+            alignItems: 'center',
+            marginBottom: 4,
           }}>
             <Text style={{
-              fontFamily:'Bebas Neue',
-              fontSize: `${etudiant.prenom?.length + etudiant.nom?.length > 20 ? '12' : '16'}px`,
-              color:'#1e293b',
-              textAlign:'center',
-              letterSpacing: 0.5,
-              lineHeight: 1.2,
-              fontWeight: 'bold'
+              fontFamily: 'Bebas Neue',
+              fontSize: `${etudiant.prenom?.length + etudiant.nom?.length > 22 ? '11' : '14'}px`,
+              color: '#0f172a',
+              textAlign: 'center',
+              lineHeight: 1.1,
+              marginBottom: 4,
+              marginTop: 2,
             }}>
               {etudiant.prenom} {etudiant.nom}
             </Text>
-          </View>
-          
-          {/* Numéro étudiant */}
-          <View style={tw('flex flex-row items-center justify-center')}>
-            <View style={{
-              backgroundColor: '#2290f0',
-              paddingHorizontal: 8,
-              paddingVertical: 3,
-              borderRadius: 6,
-              marginRight: 6,
-            }}>
-              <Text style={{
-                fontFamily:'Bebas Neue',
-                fontSize:'10px',
-                color:'#ffffff',
-                fontWeight: 'bold'
-              }}>
-                N° ÉTUDIANT
-              </Text>
-            </View>
-            <Text style={{
-              fontFamily:'Bebas Neue',
-              fontSize:'14px',
-              fontWeight: 'bold',
-              letterSpacing: 0.5
-            }}>
-              {etudiant.ncs}
-            </Text>
-          </View>
-        </View>
 
-        {/* Photo de profil - Coin inférieur gauche */}
-        <View style={{
-          position: 'absolute',
-          bottom: 6,
-          left: 6,
-          borderRadius: 50,
-          borderWidth: 3,
-          borderColor: '#2290f0',
-          padding: 2,
-          backgroundColor: '#ffffff',
-        }}>
-          <Image
-            src={{uri:`${env.VITE_APP_BACKURL_ETUDIANT}/${etudiant.avatar}`}}
-            style={{
-              width: 65,
-              height: 65,
-              borderRadius: 33,
-              objectFit: 'cover',
-            }}
-          />
+            <View style={tw('flex flex-row items-center justify-center gap-4 mt-6')}>
+              <View style={tw('flex flex-col items-center')}>
+                <Text style={{
+                  fontFamily: 'Bebas Neue',
+                  fontSize: '9px',
+                  color: '#475569',
+                  marginBottom: 1,
+                  textAlign: 'center',
+                }}>
+                  N° SOC.
+                </Text>
+                <Text style={{
+                  fontFamily: 'Bebas Neue',
+                  fontSize: '11px',
+                  color: '#0f172a',
+                  textAlign: 'center',
+                }}>
+                  {etudiant.ncs}
+                </Text>
+              </View>
+
+              <View style={tw('flex flex-col items-center')}>
+                <Text style={{
+                  fontFamily: 'Bebas Neue',
+                  fontSize: '9px',
+                  color: '#475569',
+                  marginBottom: 1,
+                  textAlign: 'center',
+                }}>
+                  TÉLÉPHONE
+                </Text>
+                <Text style={{
+                  fontFamily: 'Bebas Neue',
+                  fontSize: '11px',
+                  color: '#0f172a',
+                  textAlign: 'center',
+                }}>
+                  {etudiantContact.telephone || 'N/A'}
+                </Text>
+              </View>
+
+              <View style={tw('flex flex-col items-center')}>
+                <Text style={{
+                  fontFamily: 'Bebas Neue',
+                  fontSize: '9px',
+                  color: '#475569',
+                  marginBottom: 1,
+                  textAlign: 'center',
+                }}>
+                  ADRESSE
+                </Text>
+                <Text style={{
+                  fontFamily: 'Bebas Neue',
+                  fontSize: '11px',
+                  color: '#0f172a',
+                  textAlign: 'center',
+                }}>
+                  {etudiantContact.adresse || 'N/A'}
+                </Text>
+              </View>
+            </View>
+          </View>
+          </View>
+
+          {/* Photo de profil - Coin inférieur gauche */}
+          <View style={{
+            position: 'absolute',
+            bottom: 6,
+            left: 6,
+            borderRadius: 44,
+            borderWidth: 2,
+            borderColor: '#0284c7',
+            padding: 2,
+            backgroundColor: '#ffffff',
+          }}>
+            <Image
+              src={{ uri: `${env.VITE_APP_BACKURL_ETUDIANT}/${etudiant.avatar}` }}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 28,
+                objectFit: 'cover',
+              }}
+            />
+          </View>
+
+          {/* QR Code - Coin inférieur droit */}
+          <View style={{
+            position: 'absolute',
+            bottom: 6,
+            right: 6,
+            borderWidth: 1.5,
+            borderColor: '#0284c7',
+            borderRadius: 8,
+            backgroundColor: '#ffffff',
+            padding: 3,
+          }}>
+            <QRCodePage id="qrcode" size="small" />
+          </View>
         </View>
-        
-        {/* QR Code - Coin inférieur droit */}
-        <View style={{
-          position: 'absolute',
-          bottom: 6,
-          right: 6,
-          backgroundColor: '#ffffff',
-          padding: 3,
-          borderRadius: 8,
-          borderWidth: 2,
-          borderColor: '#2290f0',
-        }}>
-          <QRCodePage id="qrcode" size="small" />
-        </View>
-      </View>
-       
-    </Page>
-   
-  </Document>
+      </Page>
+    </Document>
   )
 }
 
