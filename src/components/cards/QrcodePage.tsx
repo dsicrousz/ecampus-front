@@ -18,9 +18,10 @@ const tw = createTw({
 interface QRCodePageProps {
   id: string;
   size?: 'small' | 'default' | 'large';
+  style?: any;
 }
 
-function QRCodePage({ id, size = 'default' }: QRCodePageProps) {
+function QRCodePage({ id, size = 'default', style }: QRCodePageProps) {
   const element = document.getElementById(id) as HTMLCanvasElement | null;
   
   if (!element) {
@@ -39,7 +40,7 @@ function QRCodePage({ id, size = 'default' }: QRCodePageProps) {
   
   return (
       <View>
-        <Image src={dataUrl} style={sizeStyles[size]} />
+        <Image src={dataUrl} style={[sizeStyles[size], style]} />
       </View>
   );
 }

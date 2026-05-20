@@ -52,12 +52,12 @@ function Recto({ compte }: RectoProps) {
       <Page size={[285, 175]} style={tw('flex')}>
         <Image src="/bg_recto.png" style={styles.pageBackground} />
 
-        <View style={tw('flex flex-col w-full h-full px-3 py-3')}>
-         <View style={tw('flex flex-row items-center justify-center w-full mb-2')}>
-            <Image src="/logo.png" style={{ width: 40, height: 40 }} />
+        <View style={tw('flex flex-col w-full h-full px-3 py-2')}>
+         <View style={tw('flex w-full')}>
+            <Image src="/logo.png" style={{ width: 40, height: 50 }} />
           </View>
 
-          <View style={tw('flex flex-col items-center mb-10')}>
+          <View style={tw('flex flex-col items-center')}>
             <View style={{
               backgroundColor: '#0284c7',
               borderRadius: 10,
@@ -77,23 +77,23 @@ function Recto({ compte }: RectoProps) {
             paddingHorizontal: 8,
             paddingVertical: 4,
             alignItems: 'center',
-            marginBottom: 4,
+            marginBottom: 2,
           }}>
             <Text style={{
               fontFamily: 'Bebas Neue',
-              fontSize: `${etudiant.prenom?.length + etudiant.nom?.length > 22 ? '11' : '14'}px`,
+              fontSize: `${etudiant.prenom?.length + etudiant.nom?.length > 22 ? '12' : '14'}px`,
               color: '#0f172a',
               textAlign: 'center',
               lineHeight: 1.1,
-              marginBottom: 4,
+              marginBottom: 2,
               marginTop: 2,
             }}>
               {etudiant.prenom} {etudiant.nom}
             </Text>
 
-            <View style={tw('flex flex-row items-center justify-center gap-4 mt-6')}>
-              <View style={tw('flex flex-col items-center')}>
-                <Text style={{
+            <View style={tw('flex flex-col mt-4')}>
+              <View style={tw('flex flex-col')}>
+                {/* <Text style={{
                   fontFamily: 'Bebas Neue',
                   fontSize: '9px',
                   color: '#475569',
@@ -101,19 +101,18 @@ function Recto({ compte }: RectoProps) {
                   textAlign: 'center',
                 }}>
                   N° SOC.
-                </Text>
+                </Text> */}
                 <Text style={{
                   fontFamily: 'Bebas Neue',
-                  fontSize: '11px',
+                  fontSize: '12px',
                   color: '#0f172a',
-                  textAlign: 'center',
                 }}>
-                  {etudiant.ncs}
+                   N° SOC: {etudiant.ncs}
                 </Text>
               </View>
 
-              <View style={tw('flex flex-col items-center')}>
-                <Text style={{
+              <View style={tw('flex flex-col')}>
+                {/* <Text style={{
                   fontFamily: 'Bebas Neue',
                   fontSize: '9px',
                   color: '#475569',
@@ -121,19 +120,18 @@ function Recto({ compte }: RectoProps) {
                   textAlign: 'center',
                 }}>
                   TÉLÉPHONE
-                </Text>
+                </Text> */}
                 <Text style={{
                   fontFamily: 'Bebas Neue',
-                  fontSize: '11px',
+                  fontSize: '12px',
                   color: '#0f172a',
-                  textAlign: 'center',
                 }}>
-                  {etudiantContact.telephone || 'N/A'}
+                  TÉL: {etudiantContact.telephone || 'N/A'}
                 </Text>
               </View>
 
-              <View style={tw('flex flex-col items-center')}>
-                <Text style={{
+              <View style={tw('flex flex-col')}>
+                {/* <Text style={{
                   fontFamily: 'Bebas Neue',
                   fontSize: '9px',
                   color: '#475569',
@@ -141,14 +139,13 @@ function Recto({ compte }: RectoProps) {
                   textAlign: 'center',
                 }}>
                   ADRESSE
-                </Text>
+                </Text> */}
                 <Text style={{
                   fontFamily: 'Bebas Neue',
-                  fontSize: '11px',
+                  fontSize: '12px',
                   color: '#0f172a',
-                  textAlign: 'center',
                 }}>
-                  {etudiantContact.adresse || 'N/A'}
+                   ADR: {etudiantContact.adresse || 'N/A'}
                 </Text>
               </View>
             </View>
@@ -160,7 +157,7 @@ function Recto({ compte }: RectoProps) {
             position: 'absolute',
             bottom: 6,
             left: 6,
-            borderRadius: 44,
+            borderRadius: 20,
             borderWidth: 2,
             borderColor: '#0284c7',
             padding: 2,
@@ -171,7 +168,7 @@ function Recto({ compte }: RectoProps) {
               style={{
                 width: 56,
                 height: 56,
-                borderRadius: 28,
+                borderRadius: 20,
                 objectFit: 'cover',
               }}
             />
@@ -180,7 +177,7 @@ function Recto({ compte }: RectoProps) {
           {/* QR Code - Coin inférieur droit */}
           <View style={{
             position: 'absolute',
-            bottom: 6,
+            top: 6,
             right: 6,
             borderWidth: 1.5,
             borderColor: '#0284c7',
@@ -188,7 +185,7 @@ function Recto({ compte }: RectoProps) {
             backgroundColor: '#ffffff',
             padding: 3,
           }}>
-            <QRCodePage id="qrcode" size="small" />
+            <QRCodePage id="qrcode" size="small" style={{ width: 40, height: 40 }} />
           </View>
         </View>
       </Page>
