@@ -99,7 +99,7 @@ function Verso() {
           <View style={{
             marginTop: 2,
           }}>
-             <Image src="/tampon.png" style={{ width: 40, height: 40 }} />
+             <Image src="/tampon.png" style={{ width: 90, height: 50 }} />
           </View>
         </View>
       </Page>
