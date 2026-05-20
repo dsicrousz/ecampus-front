@@ -53,8 +53,9 @@ function Recto({ compte }: RectoProps) {
         <Image src="/bg_recto.png" style={styles.pageBackground} />
 
         <View style={tw('flex flex-col w-full h-full px-3 py-2')}>
-         <View style={tw('flex w-full')}>
-            <Image src="/logo.png" style={{ width: 40, height: 50 }} />
+          <View style={tw('flex flex-row justify-between w-full')}>
+            <Image src="/logo.png" style={{ width: 40, height: 40 }} />
+            <Image src="/logo_noir2.png" style={{ width: 50, height: 30 }} />
           </View>
 
           <View style={tw('flex flex-col items-center')}>
@@ -177,7 +178,7 @@ function Recto({ compte }: RectoProps) {
           {/* QR Code - Coin inférieur droit */}
           <View style={{
             position: 'absolute',
-            top: 6,
+            bottom: 6,
             right: 6,
             borderWidth: 1.5,
             borderColor: '#0284c7',

@@ -3,7 +3,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 import { Form, Input, Button, Typography, Spin } from 'antd';
 import { useState } from 'react';
 import { motion } from 'motion/react';
-import { Utensils, Mail, Lock, QrCode, ShieldCheck, ArrowRight, CheckCircle2, Clock, Zap } from 'lucide-react';
+import { Mail, Lock, QrCode, ShieldCheck, ArrowRight, CheckCircle2, Clock, Zap } from 'lucide-react';
 
 const { Title, Text, Link } = Typography;
 
@@ -63,18 +63,12 @@ function App() {
               transition={{ duration: 0.8 }}
             >
               {/* Logo */}
-              <div className="flex items-center gap-3 mb-12">
-                <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg">
-                  <Utensils className="w-7 h-7 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-900">E-Campus</h1>
-                  <p className="text-slate-500 text-sm">CROUS de Ziguinchor</p>
-                </div>
+              <div className="flex items-center gap-3">
+               <img src="/logo_vert_bleu.png" alt="Logo" width="35%" />
               </div>
 
               {/* Hero Text */}
-              <div className="mb-12">
+              <div className="mb-6">
                 <h2 className="text-5xl font-black text-slate-900 leading-tight mb-6">
                   La restauration<br />
                   <span className="text-transparent bg-clip-text bg-linear-to-r from-blue-600 to-teal-600">
@@ -133,13 +127,9 @@ function App() {
             className="w-full max-w-md"
           >
             {/* Mobile Logo */}
-            <div className="lg:hidden flex items-center justify-center gap-3 mb-10">
-              <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center">
-                <Utensils className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-slate-900">E-Campus</h1>
-                <p className="text-slate-500 text-xs">CROUS de Ziguinchor</p>
+            <div className="lg:hidden flex items-center justify-center gap-3">
+              <div className="flex items-center justify-center gap-3">
+               <img src="/logo_vert_bleu.png" alt="Logo" width="45%" />
               </div>
             </div>
 
