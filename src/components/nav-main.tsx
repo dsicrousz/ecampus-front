@@ -37,8 +37,8 @@ export function NavMain({
   const { data: sessionData } = useSession();
   return (
     <SidebarGroup>
-      <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-        E-CAMPUS
+      <SidebarGroupLabel className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 my-4">
+        <img src="/logo_vert_bleu.png" alt="Logo" width="100%" />
       </SidebarGroupLabel>
       <SidebarMenu>
         {items.map((item) => (

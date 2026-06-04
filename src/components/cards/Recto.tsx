@@ -50,11 +50,11 @@ function Recto({ compte }: RectoProps) {
   return (
     <Document>
       <Page size={[285, 175]} style={tw('flex')}>
-        <Image src="/bg_recto.png" style={styles.pageBackground} />
+        <Image src="/plan.png" style={styles.pageBackground} />
 
         <View style={tw('flex flex-col w-full h-full px-3 py-2')}>
           <View style={tw('flex flex-row justify-between w-full')}>
-            <Image src="/logo.png" style={{ width: 40, height: 40 }} />
+            <Image src="/logosansbg.png" style={{ width: 40, height: 40 }} />
             <Image src="/logo_noir2.png" style={{ width: 50, height: 30 }} />
           </View>
 
