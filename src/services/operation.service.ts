@@ -72,6 +72,25 @@ export class OperationService extends Service {
     return this.api.post(`/${this.ressource}`, operationData).then((res: any) => res.data);
   }
 
+  /**
+   * Crée une opération d'ECHANGE_TICKET
+   * Le vendeur échange les anciens tickets imprimés d'un étudiant contre une recharge
+   * @param {Object} data - Données de l'échange
+   * @param {string} data.compte - ID du compte de l'étudiant
+   * @param {string} data.ticket - ID du ticket échangé
+   * @param {string} data.agentControle - ID du vendeur connecté
+   * @param {number} data.quantite - Nombre de tickets imprimés ramenés (≥ 1)
+   * @param {number} [data.montant] - Ignoré par le backend, recalculé automatiquement
+   */
+  async echangeTicket(data: any): Promise<any> {
+    const operationData = {
+      ...data,
+      type: 'ECHANGE_TICKET',
+      montant: 0
+    };
+    return this.api.post(`/${this.ressource}`, operationData).then((res: any) => res.data);
+  }
+
   // ===== Méthodes legacy (à conserver pour compatibilité) =====
 
   async depot(data: any): Promise<any> {

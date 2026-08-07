@@ -12,7 +12,7 @@ import { USER_ROLE } from '@/types/user.roles';
 const { Title, Text } = Typography;
 
 export const Route = createFileRoute('/admin/decades/')({
-  beforeLoad: () => requireRole([USER_ROLE.CHEF_RESTAURANT, USER_ROLE.SUPERADMIN]),
+  beforeLoad: () => requireRole([USER_ROLE.SUPERVISEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -84,18 +84,18 @@ function RouteComponent() {
       <Spin spinning={isLoading}>
         <Space orientation="vertical" size="large" style={{ width: '100%' }}>
           {/* Hero Header */}
-          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+          <Card className="controller-hero controller-hero-soft border">
             <Row gutter={[24, 16]} align="middle" wrap>
               <Col flex="none">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                   <CalendarOutlined style={{ fontSize: 28 }} />
                 </div>
               </Col>
               <Col flex="auto">
-                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Périodes
                 </Text>
-                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                <Title level={3} className="mb-1! mt-1! text-foreground!">
                   Décades
                 </Title>
                 <Text type="secondary">
@@ -103,11 +103,11 @@ function RouteComponent() {
                 </Text>
               </Col>
               <Col flex="none">
-                <div className="min-w-[220px] rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <div className="min-w-[220px] rounded-2xl border border-border bg-muted px-5 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Total
                   </p>
-                  <p className="text-3xl font-bold text-slate-900">
+                  <p className="text-3xl font-bold text-foreground">
                     {decades?.length || 0}
                   </p>
                 </div>
@@ -116,7 +116,7 @@ function RouteComponent() {
           </Card>
 
           {/* Table */}
-          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Décades</span>}>
+          <Card className="controller-panel" title={<span className="text-foreground font-semibold">Liste des Décades</span>}>
             <Table
               className="controller-table"
               columns={columns}

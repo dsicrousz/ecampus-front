@@ -67,20 +67,6 @@ const data = {
         },
       ],
     },
-
-    {
-      title: "Repreuneurs",
-      roles: [USER_ROLE.REPREUNEUR,USER_ROLE.SUPERADMIN],
-      icon: CalendarRange,
-      isActive: true,
-      items: [
-        {
-          title: "Gestion Repreuneur",
-          url: "/admin/repreuneurs",
-          roles: [USER_ROLE.REPREUNEUR,USER_ROLE.SUPERADMIN],
-        },
-      ],
-    },
     {
       title: "Tickets",
       roles: [USER_ROLE.ADMIN,USER_ROLE.SUPERADMIN],
@@ -91,19 +77,6 @@ const data = {
           title: "Gestion des Tickets",
           url: "/admin/tickets",
           roles: [USER_ROLE.ADMIN,USER_ROLE.SUPERADMIN],
-        },
-      ],
-    },
-    {
-      title: "Controleurs",
-      roles: [USER_ROLE.CONTROLEUR,USER_ROLE.SUPERADMIN],
-      icon: TicketCheck,
-      isActive: true,
-      items: [
-        {
-          title: "Gestion des Controleurs",
-          url: "/admin/controleurs",
-          roles: [USER_ROLE.CONTROLEUR,USER_ROLE.SUPERADMIN],
         },
       ],
     },
@@ -122,18 +95,49 @@ const data = {
     },
     {
       title: "Restaurations",
-      roles: [USER_ROLE.SUPERADMIN, USER_ROLE.CHEF_RESTAURANT],
+      roles: [USER_ROLE.SUPERVISEUR, USER_ROLE.SUPERADMIN, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.ADMIN],
       icon: Bot,
       items: [
         {
           title: "Gestion des restaurants",
           url: "/admin/restaurations",
-          roles: [USER_ROLE.CHEF_RESTAURANT, USER_ROLE.SUPERADMIN],
+          roles: [USER_ROLE.SUPERVISEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN, USER_ROLE.ADMIN],
         },
         {
           title: "Supervision des décades",
           url: "/admin/decades",
-          roles: [USER_ROLE.CHEF_RESTAURANT, USER_ROLE.SUPERADMIN],
+          roles: [USER_ROLE.SUPERVISEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN, USER_ROLE.ADMIN],
+        },
+        {
+          title: "Mes restaurants",
+          url: "/admin/superviseur",
+          roles: [USER_ROLE.SUPERVISEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN, USER_ROLE.ADMIN],
+        },
+      ],
+    },
+    { 
+      title: "Contrôle",
+      roles: [USER_ROLE.CONTROLEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN],
+      icon: TicketCheck,
+      isActive: true,
+      items: [
+        {
+          title: "Mes assignations",
+          url: "/admin/controleurs",
+          roles: [USER_ROLE.CONTROLEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN],
+        },
+      ],
+    },
+    {
+      title: "Repreuneurs",
+      roles: [USER_ROLE.REPREUNEUR,USER_ROLE.SUPERADMIN],
+      icon: CalendarRange,
+      isActive: true,
+      items: [
+        {
+          title: "Gestion Repreuneur",
+          url: "/admin/repreuneurs",
+          roles: [USER_ROLE.REPREUNEUR,USER_ROLE.SUPERADMIN],
         },
       ],
     },

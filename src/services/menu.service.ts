@@ -26,6 +26,15 @@ export class MenuService extends Service {
   }
 
   /**
+   * Récupère le menu du jour d'un restaurant
+   * @param {string} restaurantId - ID du restaurant
+   * @returns {Promise} Menu du jour ou null
+   */
+  async dayMenu(restaurantId: string | number): Promise<any> {
+    return this.api.get(`/${this.ressource}/day/${restaurantId}`).then((res: any) => res.data);
+  }
+
+  /**
    * Récupère un menu avec les détails complets des plats
    * @param {string} menuId - ID du menu
    * @returns {Promise} Menu avec plats populés

@@ -134,18 +134,18 @@ function RouteComponent() {
       <Spin spinning={isLoading}>
         <Space orientation="vertical" size="large" style={{ width: '100%' }}>
           {/* Hero Header */}
-          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+          <Card className="controller-hero controller-hero-soft border">
             <Row gutter={[24, 16]} align="middle" wrap>
               <Col flex="none">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                   <UserOutlined style={{ fontSize: 28 }} />
                 </div>
               </Col>
               <Col flex="auto">
-                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Utilisateurs
                 </Text>
-                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                <Title level={3} className="mb-1! mt-1! text-foreground!">
                   Étudiants
                 </Title>
                 <Text type="secondary">
@@ -175,7 +175,7 @@ function RouteComponent() {
             <Col xs={24} sm={8}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title={<span className="text-blue-700 font-medium">Total Étudiants</span>}
+                  title={<span className="text-primary font-medium">Total Étudiants</span>}
                   value={etudiants?.length || 0}
                   prefix={<UserOutlined />}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
@@ -205,7 +205,7 @@ function RouteComponent() {
           </Row>
 
           {/* Table */}
-          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Étudiants</span>}>
+          <Card className="controller-panel" title={<span className="text-foreground font-semibold">Liste des Étudiants</span>}>
             <Table
               className="controller-table"
               columns={columns}

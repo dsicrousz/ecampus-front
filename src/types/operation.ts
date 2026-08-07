@@ -2,7 +2,7 @@ import type { Compte } from './compte';
 import type { Ticket } from './ticket';
 import type { Service } from './service';
 
-export type TypeOperation = 'RECHARGE' | 'UTILISATION' | 'TRANSFERT' | 'REMBOURSEMENT';
+export type TypeOperation = 'RECHARGE' | 'UTILISATION' | 'TRANSFERT' | 'REMBOURSEMENT' | 'ECHANGE_TICKET';
 
 export interface Operation {
   _id: string;
@@ -44,6 +44,9 @@ export interface Operation {
     annee: string;
   };
   
+  // Quantité (pour ECHANGE_TICKET)
+  quantite?: number;
+
   // Note ou description
   note?: string;
   
@@ -55,14 +58,16 @@ export const TypeOperationColors: Record<TypeOperation, string> = {
   RECHARGE: 'green',
   UTILISATION: 'blue',
   TRANSFERT: 'orange',
-  REMBOURSEMENT: 'purple'
+  REMBOURSEMENT: 'purple',
+  ECHANGE_TICKET: 'cyan'
 }
 
 export const TypeOperationLabels: Record<TypeOperation, string> = {
   RECHARGE: 'Recharge',
   UTILISATION: 'Utilisation',
   TRANSFERT: 'Transfert',
-  REMBOURSEMENT: 'Remboursement'
+  REMBOURSEMENT: 'Remboursement',
+  ECHANGE_TICKET: 'Échange Ticket'
 }
 
 export const formatMontant = (montant: number): string => {
@@ -82,6 +87,8 @@ export const getOperationDescription = (operation: Operation): string => {
       return `Transfert de ${formatMontant(operation.montant)}`
     case 'REMBOURSEMENT':
       return `Remboursement de ${formatMontant(operation.montant)}`
+    case 'ECHANGE_TICKET':
+      return operation.note || `Échange de ${operation.quantite || 1} ticket(s) - Recharge de ${formatMontant(operation.montant)}`
     default:
       return operation.note || 'Opération'
   }

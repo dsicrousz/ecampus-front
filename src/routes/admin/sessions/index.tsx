@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { requireRole } from '@/lib/route-protection';
+import { requireRole, canModify } from '@/lib/route-protection';
+import { useSession } from '@/auth/auth-client';
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Card, 
@@ -70,6 +71,8 @@ export const Route = createFileRoute('/admin/sessions/')({
 })
 
 function RouteComponent() {
+  const { data: session } = useSession();
+  const canEdit = canModify(session?.user?.role);
   const [modalOpen, setModalOpen] = useState(false);
   const [form] = Form.useForm<SessionFormValues>();
   const queryClient = useQueryClient();
@@ -206,7 +209,8 @@ function RouteComponent() {
       render: (isActive: boolean, record: Session) => (
         <Switch
           checked={isActive}
-          onChange={() => handleToggleActive(record)}
+          onChange={() => canEdit && handleToggleActive(record)}
+          disabled={!canEdit}
           checkedChildren={<CheckCircleOutlined />}
           unCheckedChildren={<CloseCircleOutlined />}
           loading={activateMutation.isPending || deactivateMutation.isPending}
@@ -227,18 +231,18 @@ function RouteComponent() {
       <Spin spinning={isLoading}>
         <Space orientation="vertical" size="large" style={{ width: '100%' }}>
           {/* Hero Header */}
-          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+          <Card className="controller-hero controller-hero-soft border">
             <Row gutter={[24, 16]} align="middle" wrap>
               <Col flex="none">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                   <CalendarOutlined style={{ fontSize: 28 }} />
                 </div>
               </Col>
               <Col flex="auto">
-                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Académique
                 </Text>
-                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                <Title level={3} className="mb-1! mt-1! text-foreground!">
                   Sessions
                 </Title>
                 <Text type="secondary">
@@ -246,13 +250,13 @@ function RouteComponent() {
                 </Text>
               </Col>
               <Col flex="none">
-                <Button 
+                {canEdit && <Button 
                   type="primary" 
                   icon={<PlusOutlined />} 
                   onClick={handleCreate}
                 >
                   Nouvelle
-                </Button>
+                </Button>}
               </Col>
             </Row>
           </Card>
@@ -264,7 +268,7 @@ function RouteComponent() {
                 <Col flex="auto">
                   <Space direction="vertical" size={0}>
                     <Text className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Session Active</Text>
-                    <Title level={4} className="mb-1! text-slate-900!">
+                    <Title level={4} className="mb-1! text-foreground!">
                       {activeSession.annee}
                     </Title>
                     <Text type="secondary">
@@ -286,7 +290,7 @@ function RouteComponent() {
             <Col xs={24} sm={12} md={6}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title={<span className="text-blue-700 font-medium">Total Sessions</span>}
+                  title={<span className="text-primary font-medium">Total Sessions</span>}
                   value={stats.total}
                   prefix={<CalendarOutlined />}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
@@ -306,7 +310,7 @@ function RouteComponent() {
             <Col xs={24} sm={12} md={6}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title={<span className="text-slate-700 font-medium">Sessions Terminées</span>}
+                  title={<span className="text-foreground font-medium">Sessions Terminées</span>}
                   value={stats.terminee}
                   prefix={<CloseCircleOutlined />}
                   valueStyle={{ color: '#64748b', fontSize: '1.75rem', fontWeight: 800 }}
@@ -316,7 +320,7 @@ function RouteComponent() {
           </Row>
 
           {/* Tableau des sessions */}
-          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Sessions</span>}>
+          <Card className="controller-panel" title={<span className="text-foreground font-semibold">Liste des Sessions</span>}>
             <Table
               className="controller-table"
               columns={columns}

@@ -126,7 +126,7 @@ export function LoginForm({
               style={{
                 height: '100%',
                 minHeight: '500px',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: 'var(--primary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

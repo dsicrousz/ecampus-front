@@ -14,6 +14,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminUnauthorizedRouteImport } from './routes/admin/unauthorized'
 import { Route as AdminTicketsIndexRouteImport } from './routes/admin/tickets/index'
+import { Route as AdminSuperviseurIndexRouteImport } from './routes/admin/superviseur/index'
 import { Route as AdminSessionsIndexRouteImport } from './routes/admin/sessions/index'
 import { Route as AdminServicesIndexRouteImport } from './routes/admin/services/index'
 import { Route as AdminRestaurationsIndexRouteImport } from './routes/admin/restaurations/index'
@@ -60,6 +61,11 @@ const AdminUnauthorizedRoute = AdminUnauthorizedRouteImport.update({
 const AdminTicketsIndexRoute = AdminTicketsIndexRouteImport.update({
   id: '/tickets/',
   path: '/tickets/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSuperviseurIndexRoute = AdminSuperviseurIndexRouteImport.update({
+  id: '/superviseur/',
+  path: '/superviseur/',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminSessionsIndexRoute = AdminSessionsIndexRouteImport.update({
@@ -205,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/admin/restaurations/': typeof AdminRestaurationsIndexRoute
   '/admin/services/': typeof AdminServicesIndexRoute
   '/admin/sessions/': typeof AdminSessionsIndexRoute
+  '/admin/superviseur/': typeof AdminSuperviseurIndexRoute
   '/admin/tickets/': typeof AdminTicketsIndexRoute
   '/admin/controleurs/$serviceId/': typeof AdminControleursServiceIdIndexRoute
   '/admin/recharge/mobile/': typeof AdminRechargeMobileIndexRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/admin/restaurations': typeof AdminRestaurationsIndexRoute
   '/admin/services': typeof AdminServicesIndexRoute
   '/admin/sessions': typeof AdminSessionsIndexRoute
+  '/admin/superviseur': typeof AdminSuperviseurIndexRoute
   '/admin/tickets': typeof AdminTicketsIndexRoute
   '/admin/controleurs/$serviceId': typeof AdminControleursServiceIdIndexRoute
   '/admin/recharge/mobile': typeof AdminRechargeMobileIndexRoute
@@ -263,6 +271,7 @@ export interface FileRoutesById {
   '/admin/restaurations/': typeof AdminRestaurationsIndexRoute
   '/admin/services/': typeof AdminServicesIndexRoute
   '/admin/sessions/': typeof AdminSessionsIndexRoute
+  '/admin/superviseur/': typeof AdminSuperviseurIndexRoute
   '/admin/tickets/': typeof AdminTicketsIndexRoute
   '/admin/controleurs/$serviceId/': typeof AdminControleursServiceIdIndexRoute
   '/admin/recharge/mobile/': typeof AdminRechargeMobileIndexRoute
@@ -294,6 +303,7 @@ export interface FileRouteTypes {
     | '/admin/restaurations/'
     | '/admin/services/'
     | '/admin/sessions/'
+    | '/admin/superviseur/'
     | '/admin/tickets/'
     | '/admin/controleurs/$serviceId/'
     | '/admin/recharge/mobile/'
@@ -322,6 +332,7 @@ export interface FileRouteTypes {
     | '/admin/restaurations'
     | '/admin/services'
     | '/admin/sessions'
+    | '/admin/superviseur'
     | '/admin/tickets'
     | '/admin/controleurs/$serviceId'
     | '/admin/recharge/mobile'
@@ -351,6 +362,7 @@ export interface FileRouteTypes {
     | '/admin/restaurations/'
     | '/admin/services/'
     | '/admin/sessions/'
+    | '/admin/superviseur/'
     | '/admin/tickets/'
     | '/admin/controleurs/$serviceId/'
     | '/admin/recharge/mobile/'
@@ -398,6 +410,13 @@ declare module '@tanstack/react-router' {
       path: '/tickets'
       fullPath: '/admin/tickets/'
       preLoaderRoute: typeof AdminTicketsIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/superviseur/': {
+      id: '/admin/superviseur/'
+      path: '/superviseur'
+      fullPath: '/admin/superviseur/'
+      preLoaderRoute: typeof AdminSuperviseurIndexRouteImport
       parentRoute: typeof AdminRoute
     }
     '/admin/sessions/': {
@@ -578,6 +597,7 @@ interface AdminRouteChildren {
   AdminRestaurationsIndexRoute: typeof AdminRestaurationsIndexRoute
   AdminServicesIndexRoute: typeof AdminServicesIndexRoute
   AdminSessionsIndexRoute: typeof AdminSessionsIndexRoute
+  AdminSuperviseurIndexRoute: typeof AdminSuperviseurIndexRoute
   AdminTicketsIndexRoute: typeof AdminTicketsIndexRoute
   AdminControleursServiceIdIndexRoute: typeof AdminControleursServiceIdIndexRoute
   AdminRechargeMobileIndexRoute: typeof AdminRechargeMobileIndexRoute
@@ -606,6 +626,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminRestaurationsIndexRoute: AdminRestaurationsIndexRoute,
   AdminServicesIndexRoute: AdminServicesIndexRoute,
   AdminSessionsIndexRoute: AdminSessionsIndexRoute,
+  AdminSuperviseurIndexRoute: AdminSuperviseurIndexRoute,
   AdminTicketsIndexRoute: AdminTicketsIndexRoute,
   AdminControleursServiceIdIndexRoute: AdminControleursServiceIdIndexRoute,
   AdminRechargeMobileIndexRoute: AdminRechargeMobileIndexRoute,

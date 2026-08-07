@@ -1,44 +1,29 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { requireRole } from '@/lib/route-protection';
-import { 
-  Card, 
-  Table, 
-  Button, 
-  Input, 
-  Space, 
-  Tag, 
-  message, 
-  Spin, 
-  Modal, 
-  InputNumber, 
-  Typography, 
-  Avatar, 
-  Divider, 
-  Row, 
-  Col, 
-  Statistic,
-  DatePicker,
-  Select
-} from 'antd';
-import { 
-  SearchOutlined, 
-  QrcodeOutlined, 
-  CheckCircleOutlined, 
-  DollarOutlined, 
-  IdcardOutlined, 
-  PrinterOutlined, 
-  WalletOutlined, 
-  PlusOutlined,
-  SendOutlined,
-  UserOutlined
-} from '@ant-design/icons';
+import { DatePicker } from 'antd';
+import {
+  Wallet,
+  QrCode,
+  CheckCircle2,
+  DollarSign,
+  IdCard,
+  Printer,
+  Plus,
+  Send,
+  ArrowLeftRight,
+  Search,
+  Loader2,
+  Inbox,
+  Clock,
+} from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CompteService } from '@/services/compte.service';
 import { OperationService } from '@/services/operation.service';
 import { VendeurService } from '@/services/vendeurservice';
 import { TransfertVersementService } from '@/services/transfert-versement.service';
 import { UserService } from '@/services/user.service';
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { TicketService } from '@/services/ticket.service';
+import { useState, useEffect, useMemo } from 'react';
 import { validate } from 'uuid';
 import pdfMake from 'pdfmake/build/pdfmake';
 import dayjs from '@/config/dayjs.config';
@@ -47,21 +32,25 @@ import { authClient } from '@/auth/auth-client';
 import type { Compte } from '@/types/compte';
 import type { Operation, TypeOperation } from '@/types/operation';
 import type { TransfertVersement, TransfertVendeurRecouvreurDto } from '@/types/transfert-versement';
-import { EtatTransfertColors, EtatTransfertLabels, ETAT_TRANSFERT } from '@/types/transfert-versement';
-import type { User } from '@/types/user';
-import type { ColumnsType } from 'antd/es/table';
-import { formatMontant, getOperationDescription, TypeOperationColors, TypeOperationLabels } from '@/types/operation';
+import { EtatTransfertLabels, ETAT_TRANSFERT } from '@/types/transfert-versement';
+import type { User as UserType } from '@/types/user';
+import { formatMontant, getOperationDescription, TypeOperationLabels } from '@/types/operation';
 import { env } from '@/env';
 import type { Dayjs } from 'dayjs';
 import { useSymbologyScanner } from '@use-symbology-scanner/react';
 import { USER_ROLE } from '@/types/user.roles';
 import { QUERY_KEYS, queryKeys } from '@/constants';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 
 (pdfMake as any).vfs = font;
 
 const { RangePicker } = DatePicker;
-const { Title, Text } = Typography;
-
 
 interface RechargeData {
   compte: string;
@@ -72,23 +61,322 @@ interface RechargeData {
 
 export const Route = createFileRoute('/admin/recharge/')({
   beforeLoad: () => requireRole([USER_ROLE.VENDEUR, USER_ROLE.SUPERADMIN]),
-  component: RouteComponent
+  component: RouteComponent,
 });
+
+// ---- Status badge (ETAT_TRANSFERT) -------------------------------------------
+
+const etatBadgeStyles: Record<ETAT_TRANSFERT, string> = {
+  [ETAT_TRANSFERT.EN_ATTENTE]:
+    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
+  [ETAT_TRANSFERT.VALIDE]:
+    'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
+  [ETAT_TRANSFERT.REFUSE]:
+    'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900',
+  [ETAT_TRANSFERT.ANNULE]:
+    'bg-muted text-muted-foreground border-border',
+};
+
+function StatusBadge({ etat }: { etat: ETAT_TRANSFERT }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+        etatBadgeStyles[etat]
+      )}
+    >
+      {EtatTransfertLabels[etat]}
+    </span>
+  );
+}
+
+// ---- Type operation badge ----------------------------------------------------
+
+const typeOpBadgeStyles: Record<TypeOperation, string> = {
+  RECHARGE:
+    'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
+  UTILISATION:
+    'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900',
+  TRANSFERT:
+    'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900',
+  REMBOURSEMENT:
+    'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-900',
+  ECHANGE_TICKET:
+    'bg-cyan-50 text-cyan-700 border-cyan-200 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-900',
+};
+
+function TypeOpBadge({ type }: { type: TypeOperation }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+        typeOpBadgeStyles[type] || 'bg-muted text-muted-foreground border-border'
+      )}
+    >
+      {TypeOperationLabels[type] || type}
+    </span>
+  );
+}
+
+// ---- Stat card helper --------------------------------------------------------
+
+interface StatCardProps {
+  label: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ReactNode;
+  accent: 'blue' | 'emerald' | 'amber' | 'red';
+}
+
+const statAccentMap = {
+  blue: {
+    icon: 'bg-sky-50 text-sky-600 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900',
+    value: 'text-sky-600 dark:text-sky-400',
+  },
+  emerald: {
+    icon: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
+    value: 'text-emerald-600 dark:text-emerald-400',
+  },
+  amber: {
+    icon: 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
+    value: 'text-amber-600 dark:text-amber-400',
+  },
+  red: {
+    icon: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900',
+    value: 'text-red-600 dark:text-red-400',
+  },
+};
+
+function StatCard({ label, value, subtitle, icon, accent }: StatCardProps) {
+  const s = statAccentMap[accent];
+  return (
+    <Card className="group border-border/60 shadow-none transition-all duration-300 hover:shadow-md hover:border-border">
+      <CardContent className="flex items-start justify-between gap-4 px-5 py-5">
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {label}
+          </p>
+          <p className={cn('text-2xl font-bold tracking-tight tabular-nums', s.value)}>
+            {value}
+          </p>
+          {subtitle && (
+            <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+          )}
+        </div>
+        <div className={cn(
+          'flex size-11 shrink-0 items-center justify-center rounded-xl border transition-transform duration-300 group-hover:scale-110',
+          s.icon
+        )}>
+          {icon}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatCardSkeleton() {
+  return (
+    <Card className="border-border/60 shadow-none">
+      <CardContent className="flex items-start justify-between gap-4 px-5 py-5">
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-7 w-28" />
+        </div>
+        <Skeleton className="size-11 rounded-xl" />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---- Empty state -------------------------------------------------------------
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+        <Inbox className="size-6 text-muted-foreground" />
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
+// ---- Modal (custom dialog) ---------------------------------------------------
+
+interface ModalProps {
+  open: boolean;
+  onClose: () => void;
+  title: React.ReactNode;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  maxWidth?: string;
+}
+
+function Modal({ open, onClose, title, children, footer, maxWidth = '600px' }: ModalProps) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <Card
+        className="w-full max-h-[90vh] overflow-y-auto"
+        style={{ maxWidth }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
+          <div className="flex items-center gap-3">{title}</div>
+          <button
+            onClick={onClose}
+            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="Fermer"
+          >
+            <span className="text-lg leading-none">&times;</span>
+          </button>
+        </div>
+        <CardContent className="px-6 py-5">{children}</CardContent>
+        {footer && (
+          <div className="flex items-center justify-end gap-3 border-t border-border/60 px-6 py-4">
+            {footer}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ---- Transfert row (table row as card) ---------------------------------------
+
+interface TransfertRowProps {
+  transfert: TransfertVersement;
+}
+
+function TransfertRow({ transfert }: TransfertRowProps) {
+  return (
+    <div className="grid grid-cols-1 gap-3 border-b border-border/40 px-4 py-3.5 transition-colors hover:bg-muted/30 sm:grid-cols-[1fr_1.5fr_1fr_1fr_0.8fr] sm:items-center sm:gap-4">
+      {/* Date */}
+      <div className="text-sm text-muted-foreground tabular-nums">
+        {transfert.createdAt ? dayjs(transfert.createdAt).format('DD/MM/YYYY HH:mm') : '-'}
+      </div>
+
+      {/* Recouvreur */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        <Avatar className="size-8 border border-border shrink-0">
+          <AvatarFallback className="text-xs font-semibold">
+            {transfert.destination_acteur_name?.[0]?.toUpperCase() || '?'}
+          </AvatarFallback>
+        </Avatar>
+        <span className="truncate text-sm font-medium text-foreground">
+          {transfert.destination_acteur_name || '-'}
+        </span>
+      </div>
+
+      {/* Montant */}
+      <div className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+        {formatMontant(transfert.montant)}
+      </div>
+
+      {/* Note */}
+      <div className="truncate text-xs text-muted-foreground">
+        {transfert.note || '-'}
+      </div>
+
+      {/* Statut */}
+      <div>
+        <StatusBadge etat={transfert.etat} />
+      </div>
+    </div>
+  );
+}
+
+function TransfertTableSkeleton() {
+  return (
+    <div className="space-y-2 px-4 py-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between border-b border-border/40 pb-3">
+          <div className="flex items-center gap-3">
+            <Skeleton className="size-8 rounded-full" />
+            <Skeleton className="h-4 w-32" />
+          </div>
+          <Skeleton className="h-4 w-24" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---- Operation row (table row as card) ---------------------------------------
+
+interface OperationRowProps {
+  operation: Operation;
+}
+
+function OperationRow({ operation }: OperationRowProps) {
+  const dateStr = dayjs(operation.createdAt).format('DD/MM/YYYY HH:mm');
+
+  return (
+    <div className="grid grid-cols-1 gap-3 border-b border-border/40 px-4 py-3.5 transition-colors hover:bg-muted/30 sm:grid-cols-[1.2fr_0.8fr_1.2fr_1.5fr_1fr] sm:items-center sm:gap-4">
+      {/* Date */}
+      <div className="text-sm font-medium text-foreground tabular-nums">
+        {dateStr}
+      </div>
+
+      {/* Type */}
+      <div>
+        <TypeOpBadge type={operation.type} />
+      </div>
+
+      {/* Compte */}
+      <div className="truncate text-sm text-muted-foreground">
+        {operation.compte?.etudiant?.prenom} {operation.compte?.etudiant?.nom} {operation.compte?.etudiant?.ncs || ''}
+      </div>
+
+      {/* Description */}
+      <div className="truncate text-sm text-muted-foreground">
+        {getOperationDescription(operation)}
+      </div>
+
+      {/* Montant */}
+      <div className="text-sm font-bold tabular-nums text-foreground">
+        {formatMontant(operation.montant)}
+      </div>
+    </div>
+  );
+}
+
+function OperationTableSkeleton() {
+  return (
+    <div className="space-y-2 px-4 py-3">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between border-b border-border/40 pb-3">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ==============================================================================
+//  Page principale
+// ==============================================================================
 
 function RouteComponent() {
   const navigate = useNavigate();
   const { data: session } = authClient.useSession();
   const [openedRecharge, setOpenedRecharge] = useState(false);
   const [montantRecharge, setMontantRecharge] = useState<number>(0);
-  const [, setSearchText] = useState('');
-  const [, setSearchedColumn] = useState('');
-  const searchInput = useRef<any>(null);
+  const [opSearch, setOpSearch] = useState('');
   const [timeFilter, setTimeFilter] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
   const [qr, setQr] = useState<string>();
   const [openedTransfert, setOpenedTransfert] = useState(false);
   const [montantTransfert, setMontantTransfert] = useState<number>(0);
   const [selectedRecouvreur, setSelectedRecouvreur] = useState<string>();
   const [noteTransfert, setNoteTransfert] = useState<string>('');
+  const [openedEchange, setOpenedEchange] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState<string>();
+  const [quantiteEchange, setQuantiteEchange] = useState<number>(1);
 
   // Responsive routing: redirect to mobile on tablet and smaller screens
   useEffect(() => {
@@ -98,37 +386,35 @@ function RouteComponent() {
       }
     };
 
-    // Check initial screen size
     checkScreenSize();
 
-    // Add resize listener
     const handleResize = () => {
       checkScreenSize();
     };
 
     window.addEventListener('resize', handleResize);
 
-    // Cleanup
     return () => {
       window.removeEventListener('resize', handleResize);
     };
   }, [navigate]);
-  
+
   const qc = useQueryClient();
   const vendeurService = useMemo(() => new VendeurService(), []);
   const compteService = useMemo(() => new CompteService(), []);
   const operationService = useMemo(() => new OperationService(), []);
   const transfertVersementService = useMemo(() => new TransfertVersementService(), []);
   const userService = useMemo(() => new UserService(), []);
-  
+  const ticketService = useMemo(() => new TicketService(), []);
+
   const operationKey = ['operations', session?.user?.id];
   const soldeVendeurKey = ['solde', session?.user?.id];
   const transfertsKey = ['transferts-vendeur', session?.user?.id];
   const recouvreursKey = ['recouvreurs'];
+  const ticketsKey = ['tickets', 'active'];
   const compteKey = qr
     ? queryKeys.compteByCode(qr)
     : ([QUERY_KEYS.COMPTES, 'code', 'pending'] as const);
-
 
   const { data: allOperations, isLoading: isLoadingOperations } = useQuery<Operation[]>({
     queryKey: operationKey,
@@ -148,15 +434,20 @@ function RouteComponent() {
     enabled: !!session?.user?.id,
   });
 
-  const { data, isLoading } = useQuery<Compte>({
+  const { data } = useQuery<Compte>({
     queryKey: compteKey,
     queryFn: () => compteService.byCode(qr!),
     enabled: qr !== undefined,
   });
 
-  const { data: recouvreurs, isLoading: isLoadingRecouvreurs } = useQuery<User[]>({
+  const { data: recouvreurs, isLoading: isLoadingRecouvreurs } = useQuery<UserType[]>({
     queryKey: recouvreursKey,
     queryFn: () => userService.byRole(USER_ROLE.RECOUVREUR),
+  });
+
+  const { data: activeTickets, isLoading: isLoadingTickets } = useQuery<any[]>({
+    queryKey: ticketsKey,
+    queryFn: () => ticketService.byActive(),
   });
 
   const { data: mesTransferts, isLoading: isLoadingTransferts } = useQuery<TransfertVersement[]>({
@@ -168,7 +459,6 @@ function RouteComponent() {
   const { mutate: createTransfert, isPending: isPendingTransfert } = useMutation({
     mutationFn: (data: TransfertVendeurRecouvreurDto) => transfertVersementService.createVendeurRecouvreur(data),
     onSuccess: () => {
-      message.success('Transfert envoyé avec succès');
       setOpenedTransfert(false);
       setMontantTransfert(0);
       setSelectedRecouvreur(undefined);
@@ -176,15 +466,11 @@ function RouteComponent() {
       qc.invalidateQueries({ queryKey: transfertsKey });
       qc.invalidateQueries({ queryKey: soldeVendeurKey });
     },
-    onError: (error: any) => {
-      message.error(error?.response?.data?.message || 'Erreur lors du transfert');
-    }
   });
 
   const { mutate: createRecharge, isPending: isPendingRecharge } = useMutation({
     mutationFn: (data: RechargeData) => operationService.recharge(data),
     onSuccess: () => {
-      message.success('Recharge effectuée avec succès');
       setOpenedRecharge(false);
       setMontantRecharge(0);
       if (qr) {
@@ -193,16 +479,39 @@ function RouteComponent() {
       qc.invalidateQueries({ queryKey: soldeVendeurKey });
       qc.invalidateQueries({ queryKey: operationKey });
     },
-    onError: (error: any) => {
-      message.error(error?.response?.data?.message || 'Erreur lors de la recharge');
-    }
   });
 
+  const { mutate: createEchange, isPending: isPendingEchange } = useMutation({
+    mutationFn: (data: any) => operationService.echangeTicket(data),
+    onSuccess: () => {
+      setOpenedEchange(false);
+      setSelectedTicket(undefined);
+      setQuantiteEchange(1);
+      if (qr) {
+        qc.invalidateQueries({ queryKey: queryKeys.compteByCode(qr) });
+      }
+      qc.invalidateQueries({ queryKey: soldeVendeurKey });
+      qc.invalidateQueries({ queryKey: operationKey });
+    },
+  });
+
+  const handleEchange = () => {
+    if (!selectedTicket) return;
+    if (!quantiteEchange || quantiteEchange < 1) return;
+
+    const echangeData = {
+      compte: data?._id!,
+      ticket: selectedTicket,
+      agentControle: session?.user?.id!,
+      quantite: quantiteEchange,
+      montant: 0,
+    };
+
+    createEchange(echangeData);
+  };
+
   const handleRecharge = () => {
-    if (!montantRecharge || montantRecharge <= 0) {
-      message.warning('Veuillez indiquer un montant valide');
-      return;
-    }
+    if (!montantRecharge || montantRecharge <= 0) return;
 
     const rechargeData: RechargeData = {
       compte: data?._id!,
@@ -210,25 +519,16 @@ function RouteComponent() {
       agentControle: session?.user?.id!,
       note: `Recharge effectuée par ${session?.user?.name}`
     };
-    
+
     createRecharge(rechargeData);
   };
 
   const openRecharge = () => setOpenedRecharge(true);
 
   const handleTransfert = () => {
-    if (!montantTransfert || montantTransfert <= 0) {
-      message.warning('Veuillez indiquer un montant valide');
-      return;
-    }
-    if (!selectedRecouvreur) {
-      message.warning('Veuillez sélectionner un recouvreur');
-      return;
-    }
-    if (montantTransfert > (soldeData || 0)) {
-      message.warning('Montant supérieur à votre solde disponible');
-      return;
-    }
+    if (!montantTransfert || montantTransfert <= 0) return;
+    if (!selectedRecouvreur) return;
+    if (montantTransfert > (soldeData || 0)) return;
 
     const transfertData: TransfertVendeurRecouvreurDto = {
       vendeur_id: session!.user.id,
@@ -236,18 +536,18 @@ function RouteComponent() {
       montant: montantTransfert,
       note: noteTransfert || `Versement de ${session?.user?.name}`
     };
-    
+
     createTransfert(transfertData);
   };
 
   const handleSymbol = (symbol: string) => {
-    if(!symbol || symbol.length < 8) return;
+    if (!symbol || symbol.length < 8) return;
     if (validate(symbol)) {
       setQr(symbol);
     }
   };
 
-  useSymbologyScanner(handleSymbol,{symbologies:['EAN 8','EAN 13','QR Code']})
+  useSymbologyScanner(handleSymbol, { symbologies: ['EAN 8', 'EAN 13', 'QR Code'] });
 
   const handlePrintRecord = () => {
     const docDefinition: any = {
@@ -272,7 +572,6 @@ function RouteComponent() {
               stack: [
                 { text: 'REPUBLIQUE DU SENEGAL\n', fontSize: 8, bold: true, alignment: 'center' },
                 { text: 'Un Peuple, Un but, Une Foi\n', fontSize: 8, bold: true, margin: [0, 2], alignment: 'center' },
-                // Logo drapeau
                 { text: "MINISTERE DE L'ENSEIGNEMENT SUPERIEUR DE LA RECHERCHE ET DE L'INNOVATION \n", fontSize: 8, bold: true, margin: [0, 2], alignment: 'center' },
                 { text: 'CENTRE REGIONAL DES OEUVRES UNIVERSITAIRES SOCIALES DE ZIGUINCHOR\n', fontSize: 8, bold: true, margin: [0, 2], alignment: 'center' },
               ]
@@ -281,7 +580,6 @@ function RouteComponent() {
               width: 'auto',
               alignment: 'right',
               stack: [
-                // Logo CROUS
                 { text: `Ziguinchor Le : ${dayjs().format('DD/MM/YYYY')}`, fontSize: 8, bold: true, alignment: 'center' },
               ]
             }
@@ -334,477 +632,282 @@ function RouteComponent() {
         },
       ]
     };
-    
+
     pdfMake.createPdf(docDefinition).open();
   };
 
-
-  const handleSearchO = (
-    selectedKeys: any[],
-    confirm: () => void,
-    dataIndex: string,
-  ) => {
-    confirm();
-    setSearchText(selectedKeys[0]);
-    setSearchedColumn(dataIndex);
-  };
-  
-  const handleResetO = (clearFilters: () => void) => {
-    clearFilters();
-    setSearchText('');
-  };
-  
-  const getColumnSearchPropsO = (dataIndex: string) => ({
-    filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters, close }: any) => (
-      <div style={{ padding: 8 }} onKeyDown={(e) => e.stopPropagation()}>
-        <Input
-          ref={searchInput}
-          placeholder={`Rechercher ${dataIndex}`}
-          value={selectedKeys[0]}
-          onChange={(e) => setSelectedKeys(e.target.value ? [e.target.value] : [])}
-          onPressEnter={() => handleSearchO(selectedKeys, confirm, dataIndex)}
-          style={{ marginBottom: 8, display: 'block' }}
-        />
-        <Space>
-          <Button
-            onClick={() => handleSearchO(selectedKeys, confirm, dataIndex)}
-            icon={<SearchOutlined />}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Rechercher
-          </Button>
-          <Button
-            onClick={() => clearFilters && handleResetO(clearFilters)}
-            size="small"
-            style={{ width: 90 }}
-          >
-            Effacer
-          </Button>
-          <Button
-            type="link"
-            size="small"
-            onClick={() => {
-              close();
-            }}
-          >
-            Fermer
-          </Button>
-        </Space>
-      </div>
-    ),
-    filterIcon: (filtered: boolean) => (
-      <SearchOutlined style={{ color: filtered ? '#1677ff' : undefined }} />
-    ),
-    onFilter: (value: any, record: any) =>
-      record[dataIndex]
-        .toString()
-        .toLowerCase()
-        .includes(value.toLowerCase()),
+  const filteredOperations = operationsData.filter((op: Operation) => {
+    if (!opSearch) return true;
+    const dateStr = dayjs(op.createdAt).format('DD/MM/YYYY HH:mm');
+    return dateStr.toLowerCase().includes(opSearch.toLowerCase()) ||
+      (op.type || '').toLowerCase().includes(opSearch.toLowerCase()) ||
+      getOperationDescription(op).toLowerCase().includes(opSearch.toLowerCase()) ||
+      `${op.compte?.etudiant?.prenom} ${op.compte?.etudiant?.nom} ${op.compte?.etudiant?.ncs || ''}`.toLowerCase().includes(opSearch.toLowerCase());
   });
 
-  const columnsO: ColumnsType<Operation> = [
-    {
-      title: 'Date',
-      dataIndex: 'createdAt',
-      key: 'date',
-      ...getColumnSearchPropsO('createdAt'),
-      width: '20%',
-      render: (text: string) => <Text strong>{dayjs(text).format('DD/MM/YYYY HH:mm')}</Text>,
-    },
-    {
-      title: 'Type',
-      dataIndex: 'type',
-      key: 'type',
-      width: '15%',
-      render: (type: TypeOperation) => {
-        const color = TypeOperationColors[type] || 'default';
-        const label = TypeOperationLabels[type] || type;
-        return <Tag color={color}>{label}</Tag>;
-      },
-    },
-    {
-      title: 'Compte',
-      dataIndex: ['compte', 'etudiant'],
-      key: 'compte',
-      width: '15%',
-      render: (etudiant: any) => (
-        <div>
-          {etudiant?.prenom} {etudiant?.nom} {etudiant?.ncs}
-        </div>
-      ),
-    },
-    {
-      title: 'Description',
-      key: 'description',
-      width: '30%',
-      render: (_: any, record: Operation) => <Text>{getOperationDescription(record)}</Text>,
-    },
-    {
-      title: 'Montant',
-      dataIndex: 'montant',
-      key: 'montant',
-      width: '20%',
-      render: (montant: number) => <Text strong>{formatMontant(montant)}</Text>,
-    },
-  ];
-
   return (
-    <div className="controller-page">
-    <Spin spinning={isLoading || isLoadingSolde || isLoadingOperations || isPendingRecharge}>
-      <Space orientation="vertical" size="large" style={{ width: '100%' }}>
-        {/* Hero Section */}
-        <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
-          <Row gutter={[24, 16]} align="middle" wrap>
-            <Col flex="none">
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
-                <WalletOutlined style={{ fontSize: 28 }} />
-              </div>
-            </Col>
-            <Col flex="auto">
-              <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+    <div className="space-y-6">
+      {/* Hero Header + Solde vendeur */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <Card className="overflow-hidden border-border/60 shadow-none">
+          <CardContent className="flex items-center gap-5 px-6 py-6">
+            <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+              <Wallet className="size-8" />
+            </div>
+            <div className="min-w-0">
+              <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-primary">
                 Espace vendeur
-              </Text>
-              <Title level={3} className="mb-1! mt-1! text-slate-900!">
+              </span>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-foreground">
                 Recharge de comptes
-              </Title>
-              <Text type="secondary">
+              </h2>
+              <p className="mt-0.5 text-sm text-muted-foreground">
                 Scannez le QR code d'un étudiant pour effectuer une recharge sur son compte
-              </Text>
-            </Col>
-            <Col flex="none">
-              <div className="min-w-[220px] rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                  Mon solde vendeur
-                </Text>
-                <div className="mt-1 flex items-baseline gap-2">
-                  <span className="text-3xl font-black tracking-tight text-slate-900">
-                    {formatMontant(soldeData || 0)}
-                  </span>
-                </div>
-              </div>
-            </Col>
-          </Row>
+              </p>
+            </div>
+          </CardContent>
         </Card>
 
-        {/* Main Content */}
-        <Row gutter={[16, 16]}>
-          {/* QR Scanner Section */}
-          <Col xs={24} md={12} lg={8}>
-            <Card
-              className="controller-panel"
-              title={
-                <Space>
-                  <QrcodeOutlined style={{ fontSize: 20, color: '#0f172a' }} />
-                  <Text strong style={{ color: '#0f172a' }}>Scanner QR Code</Text>
-                </Space>
-              }
-              style={{ height: '100%', minHeight: 350 }}
-            >
-              <div className="controller-scan-frame">
-                <img
-                  src="/qrcode.gif"
-                  alt="QR Scanner"
-                  className="controller-scan-image"
-                />
+        <Card className="overflow-hidden border-border/60 shadow-none">
+          <CardContent className="flex items-center justify-between gap-4 px-6 py-6">
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Mon solde vendeur
+              </p>
+              <p className="text-3xl font-bold tracking-tight tabular-nums text-foreground">
+                {isLoadingSolde ? <Skeleton className="h-9 w-40" /> : formatMontant(soldeData || 0)}
+              </p>
+            </div>
+            <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <Wallet className="size-7" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* QR Scanner + Student Info */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_2fr]">
+        {/* QR Scanner Section */}
+        <Card className="border-border/60 shadow-none">
+          <CardHeader className="border-b border-border/60 px-5 py-4">
+            <CardTitle className="flex items-center gap-2 text-sm font-bold text-foreground">
+              <QrCode className="size-4 text-foreground" />
+              Scanner QR Code
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-5 py-5">
+            <div className="flex items-center justify-center rounded-xl border-2 border-dashed border-border/60 bg-muted/30 p-4">
+              <img
+                src="/qrcode.gif"
+                alt="QR Scanner"
+                className="max-h-64 w-full rounded-lg object-contain"
+              />
+            </div>
+            <p className="mt-4 text-center text-xs text-muted-foreground">
+              Positionnez le QR code de l'étudiant devant la caméra
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Student Info Section */}
+        {data ? (
+          <Card className="overflow-hidden border-border/60 shadow-none">
+            {/* En-tête étudiant */}
+            <div className="flex items-center gap-4 border-b border-border/60 px-6 py-5">
+              <Avatar className="size-20 shrink-0 border-2 border-border">
+                <AvatarImage src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`} />
+                <AvatarFallback className="text-lg font-semibold">
+                  {data.etudiant?.prenom?.[0]?.toUpperCase() || '?'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Étudiant scanné
+                </p>
+                <h3 className="mt-1 truncate text-xl font-bold text-foreground">
+                  {data.etudiant?.prenom} {data.etudiant?.nom}
+                </h3>
+                <span className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300">
+                  <IdCard className="size-3.5" />
+                  {data.etudiant?.ncs}
+                </span>
               </div>
-              <div className="mt-4 text-center">
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Positionnez le QR code de l'étudiant devant la caméra
-                </Text>
+            </div>
+
+            {/* Corps de la carte */}
+            <CardContent className="px-6 py-5">
+              {(data.etudiant as any)?.email || (data.etudiant as any)?.telephone ? (
+                <>
+                  <div className="flex flex-wrap gap-x-8 gap-y-2">
+                    {(data.etudiant as any)?.email && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">Email:</span>
+                        <span className="font-medium text-foreground break-all">
+                          {(data.etudiant as any).email}
+                        </span>
+                      </div>
+                    )}
+                    {(data.etudiant as any)?.telephone && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-muted-foreground">Téléphone:</span>
+                        <span className="font-medium text-foreground">
+                          {(data.etudiant as any).telephone}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <Separator className="my-4" />
+                </>
+              ) : null}
+
+              {/* Carte Solde */}
+              <div className="flex items-center gap-4 rounded-xl border border-border/60 bg-muted/30 p-5">
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+                  <Wallet className="size-6" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Solde disponible
+                  </p>
+                  <p className="text-2xl font-bold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400">
+                    {formatMontant(data.solde || 0)}
+                  </p>
+                </div>
               </div>
-            </Card>
-          </Col>
 
-          {/* Student Info Section */}
-          <Col xs={24} md={12} lg={16}>
-            {data ? (
-              <Card
-                className="controller-panel"
-                style={{ height: '100%', minHeight: 200, overflow: 'hidden' }}
-                bodyStyle={{ padding: 0 }}
-              >
-                {/* En-tête étudiant */}
-                <div className="flex items-center gap-4 border-b border-slate-100 px-6 py-5">
-                  <Avatar
-                    src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`}
-                    size={{ xs: 64, sm: 72, md: 80, lg: 88, xl: 96 }}
-                    className="shrink-0 ring-2 ring-slate-200"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                      Étudiant scanné
-                    </Text>
-                    <Title level={3} className="mb-1! mt-1! truncate text-slate-900!">
-                      {data.etudiant?.prenom} {data.etudiant?.nom}
-                    </Title>
-                    <Tag
-                      icon={<IdcardOutlined />}
-                      color="blue"
-                      style={{ borderRadius: 999 }}
-                    >
-                      {data.etudiant?.ncs}
-                    </Tag>
-                  </div>
-                </div>
+              {/* Boutons d'action */}
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <Button
+                  size="lg"
+                  className="flex-1"
+                  onClick={openRecharge}
+                >
+                  <Plus className="size-4" />
+                  Recharger le Compte
+                </Button>
+                <Button
+                  size="lg"
+                  variant="secondary"
+                  className="bg-cyan-600 text-white hover:bg-cyan-700 dark:bg-cyan-700 dark:hover:bg-cyan-800"
+                  onClick={() => setOpenedEchange(true)}
+                >
+                  <ArrowLeftRight className="size-4" />
+                  Échange Tickets
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-border/60 shadow-none">
+            <CardContent className="flex min-h-[300px] flex-col items-center justify-center px-6 py-12 text-center">
+              <div className="flex size-20 items-center justify-center rounded-full bg-muted">
+                <QrCode className="size-10 text-muted-foreground" />
+              </div>
+              <h3 className="mt-6 text-lg font-semibold text-muted-foreground">
+                En attente de scan
+              </h3>
+              <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+                Scannez le QR code d'un étudiant pour voir ses informations et effectuer une recharge
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
-                {/* Corps de la carte */}
-                <div style={{ padding: '24px 16px' }}>
-                  {(data.etudiant as any)?.email || (data.etudiant as any)?.telephone ? (
-                    <>
-                      <Row gutter={[16, 16]}>
-                        {/* Informations supplémentaires */}
-                        {(data.etudiant as any)?.email && (
-                          <Col xs={24} sm={12}>
-                            <Space>
-                              <Text type="secondary">Email:</Text>
-                              <Text 
-                                strong 
-                                style={{ 
-                                  fontSize: 13,
-                                  wordBreak: 'break-word'
-                                }}
-                              >
-                                {(data.etudiant as any).email}
-                              </Text>
-                            </Space>
-                          </Col>
-                        )}
-                        {(data.etudiant as any)?.telephone && (
-                          <Col xs={24} sm={12}>
-                            <Space>
-                              <Text type="secondary">Téléphone:</Text>
-                              <Text strong style={{ fontSize: 13 }}>
-                                {(data.etudiant as any).telephone}
-                              </Text>
-                            </Space>
-                          </Col>
-                        )}
-                      </Row>
-
-                      <Divider style={{ margin: '16px 0' }} />
-                    </>
-                  ) : null}
-                  
-                  {/* Carte Solde */}
-                  <Card 
-                    style={{ 
-                      background: '#f8fafc', 
-                      borderColor: '#e2e8f0',
-                      borderRadius: 12,
-                      boxShadow: '0 2px 8px rgba(15, 23, 42, 0.05)'
-                    }}
-                    bodyStyle={{ padding: '20px' }}
-                  >
-                    <Row align="middle" gutter={16}>
-                      <Col flex="none">
-                        <div style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: '50%',
-                          background: 'rgba(82, 196, 26, 0.1)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          <WalletOutlined style={{ fontSize: 24, color: '#52c41a' }} />
-                        </div>
-                      </Col>
-                      <Col flex="auto">
-                        <Text type="secondary" style={{ fontSize: 12, display: 'block' }}>
-                          Solde disponible
-                        </Text>
-                        <Title 
-                          level={2} 
-                          style={{ 
-                            margin: 0, 
-                            color: '#52c41a',
-                            fontSize: 'clamp(20px, 5vw, 32px)'
-                          }}
-                        >
-                          {formatMontant(data.solde || 0)}
-                        </Title>
-                      </Col>
-                    </Row>
-                  </Card>
-                  
-                  {/* Bouton de recharge */}
-                  <Button 
-                    type="primary"
-                    size="large"
-                    icon={<PlusOutlined />}
-                    onClick={openRecharge}
-                    block
-                    style={{ 
-                      marginTop: 16,
-                      height: 48,
-                      fontSize: 16,
-                      fontWeight: 600,
-                      borderRadius: 8,
-                      boxShadow: '0 4px 12px rgba(24, 144, 255, 0.3)'
-                    }}
-                  >
-                    Recharger le Compte
-                  </Button>
-                </div>
-              </Card>
-            ) : (
-              <Card style={{ height: '100%', minHeight: 350 }}>
-                <div style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  minHeight: 300,
-                  flexDirection: 'column',
-                  padding: '0 16px'
-                }}>
-                  <div style={{ 
-                    background: '#f1f5f9', 
-                    padding: 32, 
-                    borderRadius: '50%',
-                    marginBottom: 24,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
-                  }}>
-                    <QrcodeOutlined style={{ fontSize: 56, color: '#bfbfbf' }} />
-                  </div>
-                  <Title level={4} type="secondary" style={{ textAlign: 'center' }}>
-                    En attente de scan
-                  </Title>
-                  <Text type="secondary" style={{ textAlign: 'center', maxWidth: 300 }}>
-                    Scannez le QR code d'un étudiant pour voir ses informations et effectuer une recharge
-                  </Text>
-                </div>
-              </Card>
-            )}
-          </Col>
-        </Row>
-
-        {/* Section Transfert vers Recouvreur */}
-        <Card
-          className="controller-panel"
-          title={
-            <Space>
-              <SendOutlined style={{ fontSize: 20, color: '#0f172a' }} />
-              <Text strong style={{ color: '#0f172a' }}>Transfert vers Recouvreur</Text>
-            </Space>
-          }
-          extra={
+      {/* Section Transfert vers Recouvreur */}
+      <Card className="border-border/60 shadow-none">
+        <CardHeader className="border-b border-border/60 px-5 py-4">
+          <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+            <Send className="size-5 text-foreground" />
+            Transfert vers Recouvreur
+          </CardTitle>
+          <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
             <Button
-              type="primary"
-              icon={<SendOutlined />}
+              size="sm"
+              className="bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-800"
               onClick={() => setOpenedTransfert(true)}
-              style={{ background: '#f97316', borderColor: '#f97316' }}
             >
+              <Send className="size-4" />
               Nouveau Transfert
             </Button>
-          }
-        >
-          <Row gutter={[16, 16]}>
-            <Col xs={24} md={8}>
-              <Card className="controller-stat-card" size="small">
-                <Statistic
-                  title={<span className="text-orange-700 font-medium">Transferts en attente</span>}
+          </div>
+        </CardHeader>
+        <CardContent className="px-5 py-5">
+          {/* Stat cards */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {isLoadingTransferts ? (
+              <>
+                <StatCardSkeleton />
+                <StatCardSkeleton />
+                <StatCardSkeleton />
+              </>
+            ) : (
+              <>
+                <StatCard
+                  label="Transferts en attente"
                   value={mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length || 0}
-                  valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
+                  icon={<Clock className="size-5" />}
+                  accent="amber"
                 />
-              </Card>
-            </Col>
-            <Col xs={24} md={8}>
-              <Card className="controller-stat-card" size="small">
-                <Statistic
-                  title={<span className="text-emerald-700 font-medium">Transferts validés</span>}
+                <StatCard
+                  label="Transferts validés"
                   value={mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length || 0}
-                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
+                  icon={<CheckCircle2 className="size-5" />}
+                  accent="emerald"
                 />
-              </Card>
-            </Col>
-            <Col xs={24} md={8}>
-              <Card className="controller-stat-card" size="small">
-                <Statistic
-                  title={<span className="text-emerald-700 font-medium">Montant total transféré</span>}
-                  value={mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0}
-                  formatter={(value) => formatMontant(Number(value))}
-                  valueStyle={{ color: '#16a34a', fontSize: '1.5rem', fontWeight: 800 }}
+                <StatCard
+                  label="Montant total transféré"
+                  value={formatMontant(mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0)}
+                  icon={<Wallet className="size-5" />}
+                  accent="blue"
                 />
-              </Card>
-            </Col>
-          </Row>
-          
-          <Divider />
-          
-          <Table
-            className="controller-table"
-            columns={[
-              {
-                title: 'Date',
-                dataIndex: 'createdAt',
-                key: 'createdAt',
-                width: '15%',
-                render: (text: string) => <Text>{dayjs(text).format('DD/MM/YYYY HH:mm')}</Text>,
-              },
-              {
-                title: 'Recouvreur',
-                dataIndex: 'destination_acteur_name',
-                key: 'destination_acteur_name',
-                width: '25%',
-                render: (dest: any) => (
-                  <Space>
-                    <UserOutlined />
-                    <Text strong>{dest}</Text>
-                  </Space>
-                ),
-              },
-              {
-                title: 'Montant',
-                dataIndex: 'montant',
-                key: 'montant',
-                width: '20%',
-                render: (montant: number) => <Text strong>{formatMontant(montant)}</Text>,
-              },
-              {
-                title: 'Note',
-                dataIndex: 'note',
-                key: 'note',
-                width: '20%',
-                render: (note: string) => <Text type="secondary">{note || '-'}</Text>,
-              },
-              {
-                title: 'Statut',
-                dataIndex: 'etat',
-                key: 'etat',
-                width: '20%',
-                render: (etat: ETAT_TRANSFERT) => (
-                  <Tag color={EtatTransfertColors[etat]}>{EtatTransfertLabels[etat]}</Tag>
-                ),
-              },
-            ]}
-            dataSource={mesTransferts}
-            rowKey="_id"
-            loading={isLoadingTransferts}
-            pagination={{ pageSize: 5 }}
-            scroll={{ x: 600 }}
-          />
-        </Card>
+              </>
+            )}
+          </div>
 
-        {/* Operations Table */}
-        <Card
-          className="controller-panel"
-          title={
-            <Space>
-              <DollarOutlined style={{ fontSize: 20, color: '#0f172a' }} />
-              <Text strong style={{ color: '#0f172a' }}>Mes Opérations (Recharges)</Text>
-            </Space>
-          }
-          extra={
-            <Button
-              icon={<PrinterOutlined />}
-              onClick={handlePrintRecord}
-            >
-              IMPRIMER
+          <Separator className="my-5" />
+
+          {/* Table header (desktop only) */}
+          <div className="hidden grid-cols-[1fr_1.5fr_1fr_1fr_0.8fr] gap-4 border-b border-border/60 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
+            <span>Date</span>
+            <span>Recouvreur</span>
+            <span>Montant</span>
+            <span>Note</span>
+            <span>Statut</span>
+          </div>
+
+          {/* Transferts list */}
+          {isLoadingTransferts ? (
+            <TransfertTableSkeleton />
+          ) : mesTransferts && mesTransferts.length > 0 ? (
+            <div className="divide-y divide-border/40">
+              {mesTransferts.map((transfert) => (
+                <TransfertRow key={transfert._id} transfert={transfert} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Aucun transfert effectué" />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Operations Table */}
+      <Card className="border-border/60 shadow-none">
+        <CardHeader className="border-b border-border/60 px-5 py-4">
+          <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+            <DollarSign className="size-5 text-foreground" />
+            Mes Opérations (Recharges)
+          </CardTitle>
+          <div className="col-start-2 row-span-2 row-start-1 self-start justify-self-end">
+            <Button variant="outline" size="sm" onClick={handlePrintRecord}>
+              <Printer className="size-4" />
+              Imprimer
             </Button>
-          }
-        >
-          <Space orientation="vertical" style={{ width: '100%' }}>
+          </div>
+        </CardHeader>
+        <CardContent className="px-5 py-5">
+          {/* Filters */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <RangePicker
               onChange={(dates: any) => setTimeFilter(dates)}
               value={timeFilter}
@@ -813,384 +916,451 @@ function RouteComponent() {
               showTime
               style={{ width: '100%', maxWidth: 400 }}
             />
-            <Table
-              className="controller-table"
-              columns={columnsO}
-              dataSource={operationsData}
-              rowKey="_id"
-              pagination={{ pageSize: 10 }}
-              scroll={{ x: 800 }}
-            />
-          </Space>
-        </Card>
-      </Space>
+            <div className="relative flex-1 sm:max-w-xs">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Rechercher une opération..."
+                value={opSearch}
+                onChange={(e) => setOpSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          {/* Table header (desktop only) */}
+          <div className="mt-4 hidden grid-cols-[1.2fr_0.8fr_1.2fr_1.5fr_1fr] gap-4 border-b border-border/60 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
+            <span>Date</span>
+            <span>Type</span>
+            <span>Compte</span>
+            <span>Description</span>
+            <span>Montant</span>
+          </div>
+
+          {/* Operations list */}
+          {isLoadingOperations ? (
+            <OperationTableSkeleton />
+          ) : filteredOperations.length > 0 ? (
+            <div className="divide-y divide-border/40">
+              {filteredOperations.map((operation) => (
+                <OperationRow key={operation._id} operation={operation} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Aucune opération trouvée" />
+          )}
+        </CardContent>
+      </Card>
 
       {/* Modal Recharge */}
-      <Modal 
-        open={openedRecharge} 
-        onCancel={() => {
+      <Modal
+        open={openedRecharge}
+        onClose={() => {
           setOpenedRecharge(false);
           setMontantRecharge(0);
         }}
         title={
-          <Space>
-            <div style={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              background: 'rgba(82, 196, 26, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <PlusOutlined style={{ color: '#52c41a', fontSize: 20 }} />
+          <>
+            <div className="flex size-10 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300">
+              <Plus className="size-5" />
             </div>
-            <Title level={4} style={{ margin: 0, color: '#52c41a' }}>Recharge de Compte</Title>
-          </Space>
+            <h3 className="text-lg font-bold text-emerald-600 dark:text-emerald-400">Recharge de Compte</h3>
+          </>
         }
-        footer={[
-          <Button 
-            key="cancel" 
-            size="large"
-            onClick={() => {
-              setOpenedRecharge(false);
-              setMontantRecharge(0);
-            }}
-          >
-            Annuler
-          </Button>,
-          <Button 
-            key="submit" 
-            type="primary"
-            size="large"
-            icon={<CheckCircleOutlined />}
-            onClick={handleRecharge}
-            disabled={!montantRecharge || montantRecharge <= 0}
-            loading={isPendingRecharge}
-            style={{
-              boxShadow: '0 4px 12px rgba(82, 196, 26, 0.3)'
-            }}
-          >
-            Valider la Recharge
-          </Button>,
-        ]}
-        width="90%"
-        style={{ maxWidth: 600 }}
-        centered
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setOpenedRecharge(false);
+                setMontantRecharge(0);
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-700 dark:hover:bg-emerald-800"
+              onClick={handleRecharge}
+              disabled={!montantRecharge || montantRecharge <= 0 || isPendingRecharge}
+            >
+              {isPendingRecharge ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+              Valider la Recharge
+            </Button>
+          </>
+        }
       >
-        <Space direction="vertical" size="large" style={{ width: '100%', padding: '8px 0' }}>
+        <div className="space-y-5">
           {data && (
-            <Card 
-              size="small" 
-              style={{ 
-                background: '#eff6ff',
-                border: '1px solid #bfdbfe',
-                borderRadius: 12
-              }}
-            >
-              <Row gutter={16} align="middle" wrap>
-                <Col flex="none">
-                  <Avatar
-                    src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`}
-                    size={{ xs: 50, sm: 60 }}
-                    style={{ 
-                      border: '3px solid white',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                    }}
-                  />
-                </Col>
-                <Col flex="auto">
-                  <Text strong style={{ fontSize: 15, display: 'block' }}>
-                    {data.etudiant?.prenom} {data.etudiant?.nom}
-                  </Text>
-                  <Tag 
-                    icon={<IdcardOutlined />}
-                    color="blue" 
-                    style={{ marginTop: 4, fontSize: 12 }}
-                  >
-                    {data.etudiant?.ncs}
-                  </Tag>
-                  <div style={{ marginTop: 8 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Solde actuel: </Text>
-                    <Text strong style={{ color: '#52c41a', fontSize: 14 }}>
-                      {formatMontant(data.solde || 0)}
-                    </Text>
-                  </div>
-                </Col>
-              </Row>
-            </Card>
+            <div className="flex items-center gap-4 rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/40">
+              <Avatar className="size-14 shrink-0 border-2 border-background shadow-sm">
+                <AvatarImage src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`} />
+                <AvatarFallback className="text-sm font-semibold">
+                  {data.etudiant?.prenom?.[0]?.toUpperCase() || '?'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-foreground">
+                  {data.etudiant?.prenom} {data.etudiant?.nom}
+                </p>
+                <span className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300">
+                  <IdCard className="size-3.5" />
+                  {data.etudiant?.ncs}
+                </span>
+                <div className="mt-2 flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">Solde actuel:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    {formatMontant(data.solde || 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
-          
-          <div>
-            <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 8 }}>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-foreground">
               Montant de la recharge
-            </Text>
-            <InputNumber
-              size="large"
-              min={0}
-              step={100}
-              placeholder="Entrez le montant"
-              value={montantRecharge}
-              onChange={(value) => setMontantRecharge(value || 0)}
-              style={{ 
-                width: '100%',
-                fontSize: 16
-              }}
-              addonAfter="FCFA"
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-            />
-            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min={0}
+                step={100}
+                placeholder="Entrez le montant"
+                value={montantRecharge || ''}
+                onChange={(e) => setMontantRecharge(Number(e.target.value) || 0)}
+                className="h-11 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base font-medium tabular-nums shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] dark:bg-input/30"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                FCFA
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
               Montant minimum: 100 FCFA
-            </Text>
+            </p>
           </div>
-          
+
           {montantRecharge > 0 && data && (
-            <Card 
-              size="small" 
-              style={{ 
-                background: '#f0fdf4', 
-                borderColor: '#bbf7d0',
-                borderRadius: 12,
-                boxShadow: '0 2px 8px rgba(34, 197, 94, 0.1)'
-              }}
-            >
-              <Space direction="vertical" style={{ width: '100%' }} size="small">
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Aperçu de la recharge
-                </Text>
-                <Divider style={{ margin: '8px 0' }} />
-                <Row justify="space-between" align="middle">
-                  <Col>
-                    <Text type="secondary">Solde actuel</Text>
-                  </Col>
-                  <Col>
-                    <Text strong>{formatMontant(data.solde || 0)}</Text>
-                  </Col>
-                </Row>
-                <Row justify="space-between" align="middle">
-                  <Col>
-                    <Text type="secondary">Montant à ajouter</Text>
-                  </Col>
-                  <Col>
-                    <Text strong style={{ color: '#1890ff' }}>
-                      + {formatMontant(montantRecharge)}
-                    </Text>
-                  </Col>
-                </Row>
-                <Divider style={{ margin: '8px 0' }} />
-                <Row justify="space-between" align="middle">
-                  <Col>
-                    <Text strong style={{ fontSize: 15 }}>Nouveau solde</Text>
-                  </Col>
-                  <Col>
-                    <Title level={3} style={{ margin: 0, color: '#52c41a' }}>
-                      {formatMontant((data.solde || 0) + montantRecharge)}
-                    </Title>
-                  </Col>
-                </Row>
-              </Space>
-            </Card>
+            <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/40">
+              <p className="text-sm font-medium text-muted-foreground">
+                Aperçu de la recharge
+              </p>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Solde actuel</span>
+                <span className="text-sm font-bold tabular-nums text-foreground">
+                  {formatMontant(data.solde || 0)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Montant à ajouter</span>
+                <span className="text-sm font-bold tabular-nums text-sky-600 dark:text-sky-400">
+                  + {formatMontant(montantRecharge)}
+                </span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-foreground">Nouveau solde</span>
+                <span className="text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {formatMontant((data.solde || 0) + montantRecharge)}
+                </span>
+              </div>
+            </div>
           )}
-        </Space>
+        </div>
       </Modal>
 
       {/* Modal Transfert vers Recouvreur */}
-      <Modal 
-        open={openedTransfert} 
-        onCancel={() => {
+      <Modal
+        open={openedTransfert}
+        onClose={() => {
           setOpenedTransfert(false);
           setMontantTransfert(0);
           setSelectedRecouvreur(undefined);
           setNoteTransfert('');
         }}
         title={
-          <Space>
-            <div style={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              background: 'rgba(250, 140, 22, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <SendOutlined style={{ color: '#fa8c16', fontSize: 20 }} />
+          <>
+            <div className="flex size-10 items-center justify-center rounded-full border border-orange-200 bg-orange-50 text-orange-600 dark:border-orange-900 dark:bg-orange-950/40 dark:text-orange-300">
+              <Send className="size-5" />
             </div>
-            <Title level={4} style={{ margin: 0, color: '#fa8c16' }}>Transfert vers Recouvreur</Title>
-          </Space>
+            <h3 className="text-lg font-bold text-orange-600 dark:text-orange-400">Transfert vers Recouvreur</h3>
+          </>
         }
-        footer={[
-          <Button 
-            key="cancel" 
-            size="large"
-            onClick={() => {
-              setOpenedTransfert(false);
-              setMontantTransfert(0);
-              setSelectedRecouvreur(undefined);
-              setNoteTransfert('');
-            }}
-          >
-            Annuler
-          </Button>,
-          <Button 
-            key="submit" 
-            type="primary"
-            size="large"
-            icon={<SendOutlined />}
-            onClick={handleTransfert}
-            disabled={!montantTransfert || montantTransfert <= 0 || !selectedRecouvreur}
-            loading={isPendingTransfert}
-            style={{
-              background: '#fa8c16',
-              borderColor: '#fa8c16',
-              boxShadow: '0 4px 12px rgba(250, 140, 22, 0.3)'
-            }}
-          >
-            Envoyer le Transfert
-          </Button>,
-        ]}
-        width="90%"
-        style={{ maxWidth: 600 }}
-        centered
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setOpenedTransfert(false);
+                setMontantTransfert(0);
+                setSelectedRecouvreur(undefined);
+                setNoteTransfert('');
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              className="bg-orange-600 hover:bg-orange-700 dark:bg-orange-700 dark:hover:bg-orange-800"
+              onClick={handleTransfert}
+              disabled={!montantTransfert || montantTransfert <= 0 || !selectedRecouvreur || isPendingTransfert}
+            >
+              {isPendingTransfert ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              Envoyer le Transfert
+            </Button>
+          </>
+        }
       >
-        <Space direction="vertical" size="large" style={{ width: '100%', padding: '8px 0' }}>
+        <div className="space-y-5">
           {/* Solde disponible */}
-          <Card 
-            size="small" 
-            style={{ 
-              background: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              borderRadius: 12
-            }}
-          >
-            <Row align="middle" gutter={16}>
-              <Col flex="none">
-                <WalletOutlined style={{ fontSize: 24, color: '#1890ff' }} />
-              </Col>
-              <Col flex="auto">
-                <Text type="secondary" style={{ fontSize: 12 }}>Votre solde disponible</Text>
-                <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-                  {formatMontant(soldeData || 0)}
-                </Title>
-              </Col>
-            </Row>
-          </Card>
+          <div className="flex items-center gap-4 rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/40">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300">
+              <Wallet className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs text-muted-foreground">Votre solde disponible</p>
+              <p className="text-xl font-bold tabular-nums text-sky-600 dark:text-sky-400">
+                {formatMontant(soldeData || 0)}
+              </p>
+            </div>
+          </div>
 
           {/* Sélection du recouvreur */}
-          <div>
-            <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 8 }}>
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-foreground">
               Sélectionner un recouvreur
-            </Text>
-            <Select
-              size="large"
-              placeholder="Choisir un recouvreur"
-              value={selectedRecouvreur}
-              onChange={(value) => setSelectedRecouvreur(value)}
-              style={{ width: '100%' }}
-              loading={isLoadingRecouvreurs}
-              showSearch
-              optionFilterProp="children"
+            </label>
+            <select
+              value={selectedRecouvreur || ''}
+              onChange={(e) => setSelectedRecouvreur(e.target.value)}
+              disabled={isLoadingRecouvreurs}
+              className="h-11 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] dark:bg-input/30"
             >
+              <option value="">Choisir un recouvreur</option>
               {recouvreurs?.map((rec) => (
-                <Select.Option key={rec._id} value={rec._id}>
-                  <Space>
-                    <UserOutlined />
-                    {rec.name}
-                  </Space>
-                </Select.Option>
+                <option key={rec._id} value={rec._id}>
+                  {rec.name}
+                </option>
               ))}
-            </Select>
+            </select>
           </div>
-          
+
           {/* Montant du transfert */}
-          <div>
-            <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 8 }}>
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-foreground">
               Montant du transfert
-            </Text>
-            <InputNumber
-              size="large"
-              min={1}
-              max={soldeData || 0}
-              step={100}
-              placeholder="Entrez le montant"
-              value={montantTransfert}
-              onChange={(value) => setMontantTransfert(value || 0)}
-              style={{ width: '100%', fontSize: 16 }}
-              addonAfter="FCFA"
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-            />
-            <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
+            </label>
+            <div className="relative">
+              <input
+                type="number"
+                min={1}
+                max={soldeData || 0}
+                step={100}
+                placeholder="Entrez le montant"
+                value={montantTransfert || ''}
+                onChange={(e) => setMontantTransfert(Number(e.target.value) || 0)}
+                className="h-11 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base font-medium tabular-nums shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] dark:bg-input/30"
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-medium text-muted-foreground">
+                FCFA
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">
               Maximum: {formatMontant(soldeData || 0)}
-            </Text>
+            </p>
           </div>
 
           {/* Note optionnelle */}
-          <div>
-            <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 8 }}>
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-foreground">
               Note (optionnelle)
-            </Text>
-            <Input.TextArea
-              size="large"
+            </label>
+            <textarea
               placeholder="Ajouter une note..."
               value={noteTransfert}
               onChange={(e) => setNoteTransfert(e.target.value)}
               rows={2}
+              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] dark:bg-input/30"
             />
           </div>
-          
+
           {/* Aperçu du transfert */}
           {montantTransfert > 0 && selectedRecouvreur && (
-            <Card 
-              size="small" 
-              style={{ 
-                background: '#fff7ed', 
-                borderColor: '#fed7aa',
-                borderRadius: 12,
-                boxShadow: '0 2px 8px rgba(249, 115, 22, 0.1)'
+            <div className="space-y-3 rounded-xl border border-orange-200 bg-orange-50 p-4 dark:border-orange-900 dark:bg-orange-950/40">
+              <p className="text-sm font-medium text-muted-foreground">
+                Aperçu du transfert
+              </p>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Montant à transférer</span>
+                <span className="text-sm font-bold tabular-nums text-orange-600 dark:text-orange-400">
+                  {formatMontant(montantTransfert)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Recouvreur</span>
+                <span className="text-sm font-bold text-foreground">
+                  {recouvreurs?.find(r => r._id === selectedRecouvreur)?.name || '-'}
+                </span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-foreground">Solde après transfert</span>
+                <span className="text-xl font-bold tabular-nums text-sky-600 dark:text-sky-400">
+                  {formatMontant((soldeData || 0) - montantTransfert)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </Modal>
+
+      {/* Modal Échange Tickets */}
+      <Modal
+        open={openedEchange}
+        onClose={() => {
+          setOpenedEchange(false);
+          setSelectedTicket(undefined);
+          setQuantiteEchange(1);
+        }}
+        title={
+          <>
+            <div className="flex size-10 items-center justify-center rounded-full border border-cyan-200 bg-cyan-50 text-cyan-600 dark:border-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300">
+              <ArrowLeftRight className="size-5" />
+            </div>
+            <h3 className="text-lg font-bold text-cyan-600 dark:text-cyan-400">Échange de Tickets</h3>
+          </>
+        }
+        footer={
+          <>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setOpenedEchange(false);
+                setSelectedTicket(undefined);
+                setQuantiteEchange(1);
               }}
             >
-              <Space direction="vertical" style={{ width: '100%' }} size="small">
-                <Text type="secondary" style={{ fontSize: 13 }}>
-                  Aperçu du transfert
-                </Text>
-                <Divider style={{ margin: '8px 0' }} />
-                <Row justify="space-between" align="middle">
-                  <Col>
-                    <Text type="secondary">Montant à transférer</Text>
-                  </Col>
-                  <Col>
-                    <Text strong style={{ color: '#fa8c16', fontSize: 16 }}>
-                      {formatMontant(montantTransfert)}
-                    </Text>
-                  </Col>
-                </Row>
-                <Row justify="space-between" align="middle">
-                  <Col>
-                    <Text type="secondary">Recouvreur</Text>
-                  </Col>
-                  <Col>
-                    <Text strong>
-                      {recouvreurs?.find(r => r._id === selectedRecouvreur)?.name || '-'}
-                    </Text>
-                  </Col>
-                </Row>
-                <Divider style={{ margin: '8px 0' }} />
-                <Row justify="space-between" align="middle">
-                  <Col>
-                    <Text strong style={{ fontSize: 15 }}>Solde après transfert</Text>
-                  </Col>
-                  <Col>
-                    <Title level={3} style={{ margin: 0, color: '#1890ff' }}>
-                      {formatMontant((soldeData|| 0) - montantTransfert)}
-                    </Title>
-                  </Col>
-                </Row>
-              </Space>
-            </Card>
+              Annuler
+            </Button>
+            <Button
+              className="bg-cyan-600 hover:bg-cyan-700 dark:bg-cyan-700 dark:hover:bg-cyan-800"
+              onClick={handleEchange}
+              disabled={!selectedTicket || !quantiteEchange || quantiteEchange < 1 || !data || isPendingEchange}
+            >
+              {isPendingEchange ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />}
+              Valider l'Échange
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-5">
+          {data && (
+            <div className="flex items-center gap-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-900 dark:bg-cyan-950/40">
+              <Avatar className="size-14 shrink-0 border-2 border-background shadow-sm">
+                <AvatarImage src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`} />
+                <AvatarFallback className="text-sm font-semibold">
+                  {data.etudiant?.prenom?.[0]?.toUpperCase() || '?'}
+                </AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-foreground">
+                  {data.etudiant?.prenom} {data.etudiant?.nom}
+                </p>
+                <span className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-700 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-300">
+                  <IdCard className="size-3.5" />
+                  {data.etudiant?.ncs}
+                </span>
+                <div className="mt-2 flex items-center gap-1.5 text-xs">
+                  <span className="text-muted-foreground">Solde actuel:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                    {formatMontant(data.solde || 0)}
+                  </span>
+                </div>
+              </div>
+            </div>
           )}
-        </Space>
+
+          {/* Sélection du ticket */}
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-foreground">
+              Ticket à échanger
+            </label>
+            <select
+              value={selectedTicket || ''}
+              onChange={(e) => setSelectedTicket(e.target.value)}
+              disabled={isLoadingTickets}
+              className="h-11 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] dark:bg-input/30"
+            >
+              <option value="">Choisir un ticket</option>
+              {activeTickets?.map((ticket: any) => (
+                <option key={ticket._id} value={ticket._id}>
+                  {ticket.type || 'ticket'} — {ticket.nom} — {formatMontant(ticket.prix)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Quantité */}
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-foreground">
+              Quantité de tickets ramenés
+            </label>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              placeholder="Nombre de tickets"
+              value={quantiteEchange || ''}
+              onChange={(e) => setQuantiteEchange(Number(e.target.value) || 1)}
+              className="h-11 w-full rounded-md border border-input bg-transparent px-3 py-1 text-base font-medium tabular-nums shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] dark:bg-input/30"
+            />
+            <p className="text-xs text-muted-foreground">
+              Le montant sera calculé automatiquement: prix du ticket × quantité
+            </p>
+          </div>
+
+          {/* Aperçu de l'échange */}
+          {selectedTicket && quantiteEchange >= 1 && data && (
+            <div className="space-y-3 rounded-xl border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-900 dark:bg-cyan-950/40">
+              <p className="text-sm font-medium text-muted-foreground">
+                Aperçu de l'échange
+              </p>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Ticket</span>
+                <span className="text-sm font-bold text-foreground">
+                  {activeTickets?.find(t => t._id === selectedTicket)?.nom || '-'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Prix unitaire</span>
+                <span className="text-sm font-bold tabular-nums text-foreground">
+                  {formatMontant(activeTickets?.find(t => t._id === selectedTicket)?.prix || 0)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Quantité</span>
+                <span className="text-sm font-bold tabular-nums text-foreground">
+                  × {quantiteEchange}
+                </span>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Montant à créditer</span>
+                <span className="text-sm font-bold tabular-nums text-cyan-600 dark:text-cyan-400">
+                  + {formatMontant((activeTickets?.find(t => t._id === selectedTicket)?.prix || 0) * quantiteEchange)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-foreground">Nouveau solde</span>
+                <span className="text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {formatMontant((data.solde || 0) + (activeTickets?.find(t => t._id === selectedTicket)?.prix || 0) * quantiteEchange)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
       </Modal>
-    </Spin>
     </div>
   );
 }

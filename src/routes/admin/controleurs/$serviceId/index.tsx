@@ -3,18 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { FaArrowRight, FaArrowLeft, FaTicketAlt, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import { Spin, Card, Badge, Space, Typography, Empty, Button, Divider } from 'antd';
 import { ServiceService } from "@/services/service.service";
-import { QUERY_KEYS } from '@/constants';
-import type { Ticket } from '@/types/ticket';
-import {useMedia} from 'react-use';
+import { requireRole } from '@/lib/route-protection';
+import { USER_ROLE } from '@/types/user.roles';
 
 const { Title, Text, Paragraph } = Typography;
 
-// Type guard pour vérifier si un élément est un Ticket complet
-function isTicket(item: Ticket | string): item is Ticket {
-  return typeof item === 'object' && '_id' in item;
-}
-
 export const Route = createFileRoute('/admin/controleurs/$serviceId/')({
+  beforeLoad: () => requireRole([USER_ROLE.CONTROLEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -22,13 +17,15 @@ function RouteComponent() {
   const {serviceId} = Route.useParams();
   const navigate = useNavigate();
   const serviceService = new ServiceService();
-  const isMobile = useMedia('(max-width: 768px)');
   
   const { data: service, isLoading } = useQuery({
-    queryKey: [QUERY_KEYS.SERVICES, serviceId],
+    queryKey: ['service', serviceId],
     queryFn: () => serviceService.getOne(serviceId),
     enabled: !!serviceId
   });
+
+  const ticket = service && typeof service.ticket === 'object' ? service.ticket : null;
+  const ticketId = ticket?._id || (typeof service?.ticket === 'string' ? service.ticket : null);
 
   return (
     <div className="controller-page">
@@ -53,11 +50,6 @@ function RouteComponent() {
                 <Title level={4} style={{ marginTop: 8, marginBottom: 0 }}>
                   {service?.nom}
                 </Title>
-                {service?.description && (
-                  <Text className="controller-hero-copy" style={{ marginTop: 4, display: 'block' }}>
-                    {service.description}
-                  </Text>
-                )}
               </div>
               <Badge color={service?.active ? 'green' : 'red'} count={service?.active ? 'Actif' : 'Inactif'} />
             </div>
@@ -70,21 +62,21 @@ function RouteComponent() {
             </Title>
             <div className="controller-info-grid">
               <div className="controller-info-card p-4">
-                <Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>Type de Service</Text>
-                <Text strong style={{ color: '#1677ff' }} className="capitalize">
-                  {service?.typeService || '-'}
+                <Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>Type</Text>
+                <Text strong style={{ color: '#0ea5e9' }} className="capitalize">
+                  {service?.type || '-'}
                 </Text>
               </div>
               <div className="controller-info-card p-4">
-                <Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>Localisation</Text>
-                <Text strong style={{ color: '#52c41a' }}>
-                  {service?.localisation || '-'}
+                <Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>Statut</Text>
+                <Text strong style={{ color: service?.active ? '#16a34a' : '#ef4444' }}>
+                  {service?.active ? 'Actif' : 'Inactif'}
                 </Text>
               </div>
               <div className="controller-info-card p-4">
-                <Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>Nombre de Places</Text>
-                <Text strong style={{ color: '#722ed1' }}>
-                  {service?.nombre_de_places || '-'}
+                <Text type="secondary" style={{ fontSize: 12, marginBottom: 4, display: 'block' }}>Ticket lié</Text>
+                <Text strong style={{ color: '#0f172a' }}>
+                  {ticket?.nom || '-'}
                 </Text>
               </div>
             </div>
@@ -92,82 +84,79 @@ function RouteComponent() {
 
           <Divider />
 
-          {/* Tickets Section */}
+          {/* Ticket Section */}
           <div>
             <div className="flex justify-between items-center" style={{ marginBottom: 24 }}>
               <div>
                 <Title level={4} style={{ marginBottom: 0 }}>
-                  Tickets Acceptés dans ce Service
+                  Ticket à consommer
                 </Title>
                 <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
-                  {service?.ticketsacceptes?.length || 0} ticket(s) disponible(s)
+                  Cliquez sur le ticket pour accéder au contrôle
                 </Text>
               </div>
             </div>
 
-            {/* Tickets Grid */}
-            {service?.ticketsacceptes && service.ticketsacceptes.length > 0 ? (
+            {ticket && ticketId ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {service.ticketsacceptes.filter(isTicket).map((ticket) => (
-                  <Link 
-                    key={ticket._id} 
-                    to={isMobile ? '/admin/controleurs/$serviceId/ticket/$ticketId/mobile' : '/admin/controleurs/$serviceId/ticket/$ticketId'}
-                    params={{serviceId, ticketId: ticket._id}}
-                    className="block group"
+                <Link
+                  key={ticket._id}
+                  to='/admin/controleurs/$serviceId/ticket/$ticketId'
+                  params={{serviceId, ticketId}}
+                  className="block group"
+                >
+                  <Card
+                    hoverable
+                    className="controller-ticket-card h-full transition-all duration-300"
                   >
-                    <Card
-                      hoverable
-                      className="controller-ticket-card h-full transition-all duration-300"
-                    >
-                      <div className="controller-ticket-top p-6 -mx-6 -mt-6 mb-4">
-                        <div className="flex items-center justify-center">
-                          <div className="bg-slate-100 p-4 rounded-full">
-                            <FaTicketAlt size={32} color="#0f172a" />
-                          </div>
+                    <div className="controller-ticket-top p-6 -mx-6 -mt-6 mb-4">
+                      <div className="flex items-center justify-center">
+                        <div className="bg-slate-100 p-4 rounded-full">
+                          <FaTicketAlt size={32} color="#0f172a" />
                         </div>
                       </div>
+                    </div>
 
-                      <Space orientation="vertical" size="small" style={{ width: '100%', marginTop: 16 }}>
-                        <div className="flex justify-between items-start">
-                          <Title level={5} className="line-clamp-2 flex-1 mb-0">
-                            {ticket.nom}
-                          </Title>
-                          <Badge 
-                            color={ticket.active ? 'green' : 'red'} 
-                            count={ticket.active ? <FaCheckCircle /> : <FaTimesCircle />}
+                    <Space orientation="vertical" size="small" style={{ width: '100%', marginTop: 16 }}>
+                      <div className="flex justify-between items-start">
+                        <Title level={5} className="line-clamp-2 flex-1 mb-0">
+                          {ticket.nom}
+                        </Title>
+                        <Badge
+                          color={ticket.active ? 'green' : 'red'}
+                          count={ticket.active ? <FaCheckCircle /> : <FaTimesCircle />}
+                        />
+                      </div>
+
+                      {ticket.description && (
+                        <Paragraph type="secondary" className="line-clamp-3 min-h-[60px] mb-0">
+                          {ticket.description}
+                        </Paragraph>
+                      )}
+
+                      <Divider style={{ margin: '8px 0' }} />
+
+                      <div className="flex justify-between items-center">
+                        <Text type="secondary" style={{ fontSize: 12 }} strong>
+                          Prix
+                        </Text>
+                        <Badge color="green" count={`${ticket.prix?.toLocaleString()} FCFA`} />
+                      </div>
+
+                      <div className="rounded-md bg-slate-100 p-2">
+                        <div className="flex justify-between items-center">
+                          <Text style={{ fontSize: 12, color: '#0f172a' }} strong>
+                            ✓ Ticket Valide
+                          </Text>
+                          <FaArrowRight
+                            size={12}
+                            className="text-foreground group-hover:translate-x-1 transition-transform duration-200"
                           />
                         </div>
-
-                        {ticket.description && (
-                          <Paragraph type="secondary" className="line-clamp-3 min-h-[60px] mb-0">
-                            {ticket.description}
-                          </Paragraph>
-                        )}
-
-                        <Divider style={{ margin: '8px 0' }} />
-
-                        <div className="flex justify-between items-center">
-                          <Text type="secondary" style={{ fontSize: 12 }} strong>
-                            Prix
-                          </Text>
-                          <Badge color="green" count={`${ticket.prix?.toLocaleString()} FCFA`} />
-                        </div>
-
-                        <div className="rounded-md bg-slate-100 p-2">
-                          <div className="flex justify-between items-center">
-                            <Text style={{ fontSize: 12, color: '#0f172a' }} strong>
-                              ✓ Ticket Valide
-                            </Text>
-                            <FaArrowRight 
-                              size={12} 
-                              className="text-slate-700 group-hover:translate-x-1 transition-transform duration-200" 
-                            />
-                          </div>
-                        </div>
-                      </Space>
-                    </Card>
-                  </Link>
-                ))}
+                      </div>
+                    </Space>
+                  </Card>
+                </Link>
               </div>
             ) : (
               <Card className="controller-panel text-center">
@@ -176,10 +165,10 @@ function RouteComponent() {
                   description={
                     <Space orientation="vertical" size="small">
                       <Title level={4} style={{ marginBottom: 4 }}>
-                        Aucun ticket accepté
+                        Aucun ticket
                       </Title>
                       <Text type="secondary">
-                        Ce service n'a actuellement aucun ticket accepté configuré.
+                        Ce service n'a pas de ticket configuré.
                       </Text>
                     </Space>
                   }

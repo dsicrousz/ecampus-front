@@ -8,7 +8,8 @@ export enum USER_ROLE {
   CONTROLEUR = 'controleur',
   RECOUVREUR = 'recouvreur',
   REPREUNEUR = 'repreuneur',
-  CHEF_RESTAURANT = 'chef_restaurant',
+  CHEF_DIV_RESTAURANT = 'chef_div_restaurant',
   CHEF_CODIFICATION = 'chef_codification',
   CHEF_SPORT = 'chef_sport',
+  SUPERVISEUR = 'superviseur',
 }

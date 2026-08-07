@@ -26,6 +26,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { authClient } from "@/auth/auth-client"
+import { disconnectSocket } from "@/lib/socket"
 import { useNavigate } from "@tanstack/react-router"
 export function NavUser({
   user,
@@ -41,6 +42,7 @@ export function NavUser({
   const navigate = useNavigate()
 
   const handleSignOut =() => {
+    disconnectSocket();
     signOut().then(() => {
       navigate({to: '/'})
     })

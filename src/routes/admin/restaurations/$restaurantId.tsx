@@ -1,82 +1,387 @@
-import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { 
-  Card, 
-  Spin,
-  Typography,
-  Button,
-  Table,
-  DatePicker,
-  Space,
-  Statistic,
-  Row,
-  Col,
-  Tag,
-  Divider,
-  Select,
-  Input,
-  message,
-  Switch,
-  Modal,
-  Form,
-  Avatar,
-  List,
-  InputNumber
-} from 'antd';
-import type { ColumnsType } from 'antd/es/table';
-import { 
-  ArrowLeftOutlined,
-  FileTextOutlined,
-  DollarOutlined,
-  UserOutlined,
-  ShopOutlined,
-  PrinterOutlined,
-  SearchOutlined,
-  TeamOutlined,
-  SettingOutlined,
-  UserAddOutlined,
-  DollarCircleOutlined
-} from '@ant-design/icons';
-import { useState, useMemo } from "react";
-import { ServiceService } from "@/services/service.service";
-import { OperationService } from "@/services/operation.service";
-import { useDebounce } from "react-use";
+import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { requireRole, canModify } from '@/lib/route-protection';
+import { useSession } from '@/auth/auth-client';
+import { DatePicker } from 'antd';
+import {
+  ArrowLeft,
+  FileText,
+  DollarSign,
+  User,
+  Store,
+  Printer,
+  Search,
+  Users,
+  Settings,
+  UserPlus,
+  CheckCircle2,
+  XCircle,
+  MapPin,
+  Plus,
+  Trash2,
+  Pencil,
+  Loader2,
+  Inbox,
+} from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { RestaurantService } from '@/services/restaurant.service';
+import { OperationService } from '@/services/operation.service';
+import { ServiceService } from '@/services/service.service';
+import { useDebounce } from 'react-use';
 import dayjs, { Dayjs } from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import { UserService } from '@/services/user.service';
+import { TicketService } from '@/services/ticket.service';
 import { USER_ROLE } from '@/types/user.roles';
+import { QUERY_KEYS } from '@/constants';
 import type { Ticket } from '@/types/ticket';
+import { TypeService, type Service } from '@/types/service';
+import type { Operation } from '@/types/operation';
+import type { RestaurantServiceEntry } from '@/types/restaurant';
+import { formatMontant } from '@/types/operation';
 import pdfMake from 'pdfmake/build/pdfmake';
 import * as pdfFonts from 'pdfmake/build/vfs_fonts';
 import type { TDocumentDefinitions } from 'pdfmake/interfaces';
+import { Card, CardContent, CardHeader, CardTitle, CardAction, CardFooter } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Sheet, SheetContent, SheetHeader, SheetFooter, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 
 dayjs.extend(isBetween);
 // @ts-ignore
 pdfMake.vfs = pdfFonts.pdfMake?.vfs || pdfFonts;
 
-const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
-function isUserObject(item: string | { _id: string; nom: string; prenom: string; email: string; role?: string[] }): item is { _id: string; nom: string; prenom: string; email: string; role?: string[] } {
-  return typeof item === 'object' && '_id' in item;
+export const Route = createFileRoute('/admin/restaurations/$restaurantId')({
+  beforeLoad: () => requireRole([USER_ROLE.SUPERVISEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN, USER_ROLE.ADMIN]),
+  component: RouteComponent,
+});
+
+// ---- Stat card helper -------------------------------------------------------
+
+interface StatCardProps {
+  label: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ReactNode;
+  accent: 'blue' | 'emerald' | 'amber' | 'red';
 }
 
-export const Route = createFileRoute('/admin/restaurations/$restaurantId')({
-  component: RouteComponent,
-})
+const statAccentMap = {
+  blue: {
+    icon: 'bg-sky-50 text-sky-600 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900',
+    value: 'text-sky-600 dark:text-sky-400',
+  },
+  emerald: {
+    icon: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900',
+    value: 'text-emerald-600 dark:text-emerald-400',
+  },
+  amber: {
+    icon: 'bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900',
+    value: 'text-amber-600 dark:text-amber-400',
+  },
+  red: {
+    icon: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900',
+    value: 'text-red-600 dark:text-red-400',
+  },
+};
+
+function StatCard({ label, value, subtitle, icon, accent }: StatCardProps) {
+  const s = statAccentMap[accent];
+  return (
+    <Card className="group border-border/60 shadow-none transition-all duration-300 hover:shadow-md hover:border-border">
+      <CardContent className="flex items-start justify-between gap-4 px-5 py-5">
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            {label}
+          </p>
+          <p className={cn('text-2xl font-bold tracking-tight tabular-nums', s.value)}>
+            {value}
+          </p>
+          {subtitle && (
+            <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+          )}
+        </div>
+        <div className={cn(
+          'flex size-11 shrink-0 items-center justify-center rounded-xl border transition-transform duration-300 group-hover:scale-110',
+          s.icon
+        )}>
+          {icon}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatCardSkeleton() {
+  return (
+    <Card className="border-border/60 shadow-none">
+      <CardContent className="flex items-start justify-between gap-4 px-5 py-5">
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="h-7 w-28" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+        <Skeleton className="size-11 rounded-xl" />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---- Status badge -----------------------------------------------------------
+
+function StatusBadge({ active }: { active: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+        active
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900'
+          : 'bg-muted text-muted-foreground border-border'
+      )}
+    >
+      {active ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
+      {active ? 'Ouvert' : 'Fermé'}
+    </span>
+  );
+}
+
+// ---- Toggle switch ----------------------------------------------------------
+
+interface ToggleSwitchProps {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  loading?: boolean;
+}
+
+function ToggleSwitch({ checked, onChange, disabled, loading }: ToggleSwitchProps) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => !disabled && !loading && onChange(!checked)}
+      disabled={disabled || loading}
+      className={cn(
+        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors',
+        checked ? 'bg-emerald-500' : 'bg-muted-foreground/30',
+        (disabled || loading) && 'cursor-not-allowed opacity-50'
+      )}
+    >
+      {loading && (
+        <Loader2 className="absolute left-1 top-1/2 size-4 -translate-y-1/2 animate-spin text-white" />
+      )}
+      <span className={cn(
+        'pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-lg ring-0 transition-transform',
+        checked ? 'translate-x-5' : 'translate-x-0'
+      )} />
+    </button>
+  );
+}
+
+// ---- Empty state ------------------------------------------------------------
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="flex size-12 items-center justify-center rounded-full bg-muted">
+        <Inbox className="size-6 text-muted-foreground" />
+      </div>
+      <p className="mt-3 text-sm text-muted-foreground">{message}</p>
+    </div>
+  );
+}
+
+// ---- Operation row ----------------------------------------------------------
+
+interface OperationRowProps {
+  op: any;
+}
+
+function OperationRow({ op }: OperationRowProps) {
+  const prenom = op.compte?.etudiant?.prenom || '';
+  const nom = op.compte?.etudiant?.nom || '';
+  const code = op.compte?.etudiant?.ncs || '';
+  const prixStandard = op.ticketSnapshot?.prix || 0;
+
+  return (
+    <div className="grid grid-cols-1 gap-3 border-b border-border/40 px-4 py-3.5 transition-colors hover:bg-muted/30 sm:grid-cols-[auto_auto_1fr_auto_auto_auto] sm:items-center sm:gap-4">
+      {/* Date */}
+      <div className="text-sm tabular-nums text-muted-foreground">
+        {dayjs(op.createdAt).format('DD/MM/YYYY')}
+      </div>
+      {/* Heure */}
+      <div className="text-sm tabular-nums text-muted-foreground">
+        {dayjs(op.createdAt).format('HH:mm:ss')}
+      </div>
+      {/* Étudiant */}
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-foreground">{prenom} {nom}</p>
+        <p className="text-xs text-muted-foreground">{code}</p>
+      </div>
+      {/* Ticket */}
+      <div>
+        <span className="inline-flex items-center rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 px-2.5 py-0.5 text-xs font-semibold dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900">
+          {op.ticketSnapshot?.nom || '—'}
+        </span>
+      </div>
+      {/* Prix */}
+      <div className="text-sm font-bold tabular-nums text-foreground">
+        {formatMontant(prixStandard)}
+      </div>
+      {/* Agent */}
+      <div className="text-sm text-muted-foreground">
+        {op.agentControle?.name || 'Non assigné'}
+      </div>
+    </div>
+  );
+}
+
+function OperationTableSkeleton() {
+  return (
+    <div className="space-y-2 px-4 py-3">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between border-b border-border/40 pb-3">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-4 w-20" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---- Service entry row ------------------------------------------------------
+
+interface ServiceEntryRowProps {
+  entry: RestaurantServiceEntry;
+  ticketLabelMap: Record<string, string>;
+  canEdit: boolean;
+  onEdit: (record: RestaurantServiceEntry) => void;
+  onRemove: (id: string) => void;
+  isRemoving: boolean;
+}
+
+function ServiceEntryRow({ entry, ticketLabelMap, canEdit, onEdit, onRemove, isRemoving }: ServiceEntryRowProps) {
+  const svc = typeof entry.service === 'object' ? entry.service : null;
+  const svcId = typeof entry.service === 'object' ? (entry.service as Service)._id : entry.service as string;
+  const ticketId = svc && typeof svc.ticket === 'object' ? (svc.ticket as any)?._id : svc?.ticket as string;
+
+  return (
+    <div className="grid grid-cols-1 gap-3 border-b border-border/40 px-4 py-3.5 transition-colors hover:bg-muted/30 sm:grid-cols-[1fr_auto_auto_auto_auto] sm:items-center sm:gap-4">
+      {/* Nom */}
+      <div className="min-w-0">
+        <p className="truncate text-sm font-medium text-foreground">{svc?.nom || '—'}</p>
+      </div>
+      {/* Type */}
+      <div>
+        <span className="inline-flex items-center gap-1 rounded-full border bg-amber-50 text-amber-700 border-amber-200 px-2.5 py-0.5 text-xs font-semibold dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900">
+          <Store className="size-3" />
+          {svc?.type || '—'}
+        </span>
+      </div>
+      {/* Ticket */}
+      <div className="text-sm text-muted-foreground">
+        {ticketId ? (ticketLabelMap[ticketId] || '—') : '—'}
+      </div>
+      {/* Prix Repreneur */}
+      <div className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+        {formatMontant(entry.prixRepreneur || 0)}
+      </div>
+      {/* Actions */}
+      <div className="flex items-center gap-1">
+        {canEdit && (
+          <>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => onEdit(entry)}
+              title="Modifier le prix repreneur"
+            >
+              <Pencil className="size-4" />
+            </Button>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              className="text-destructive hover:text-destructive"
+              onClick={() => {
+                if (window.confirm('Retirer ce service du restaurant? Le service ne sera pas supprimé, seulement retiré de cette liste.')) {
+                  onRemove(svcId);
+                }
+              }}
+              disabled={isRemoving}
+              title="Retirer"
+            >
+              {isRemoving ? <Loader2 className="size-4 animate-spin" /> : <Trash2 className="size-4" />}
+            </Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ServiceTableSkeleton() {
+  return (
+    <div className="space-y-2 px-4 py-3">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex items-center justify-between border-b border-border/40 pb-3">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---- Native select wrapper --------------------------------------------------
+
+const nativeSelectClass =
+  'h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30';
+
+// ==============================================================================
+//  Page principale
+// ==============================================================================
 
 function RouteComponent() {
+  const { data: session } = useSession();
+  const canEdit = canModify(session?.user?.role);
   const { restaurantId } = useParams({ from: '/admin/restaurations/$restaurantId' });
   const navigate = useNavigate();
+
+  // State
   const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const [searchText, setSearchText] = useState('');
   const [debouncedSearchText, setDebouncedSearchText] = useState('');
   const [selectedTicket, setSelectedTicket] = useState<string | null>(null);
-  const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [configModalOpen, setConfigModalOpen] = useState(false);
-  const [prixModalOpen, setPrixModalOpen] = useState(false);
-  const [form] = Form.useForm();
-  const [prixForm] = Form.useForm();
+  const [serviceDrawerOpen, setServiceDrawerOpen] = useState(false);
+  const [editServiceModalOpen, setEditServiceModalOpen] = useState(false);
+
+  // Config modal form state
+  const [configRepreneur, setConfigRepreneur] = useState<string | undefined>(undefined);
+  const [configSuperviseur, setConfigSuperviseur] = useState<string | undefined>(undefined);
+
+  // Service drawer form state
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [servicePrices, setServicePrices] = useState<Record<string, number>>({});
+
+  // Edit service modal form state
+  const [editServiceId, setEditServiceId] = useState<string>('');
+  const [editServiceNom, setEditServiceNom] = useState<string>('');
+  const [editPrixRepreneur, setEditPrixRepreneur] = useState<number>(0);
+
   const userService = new UserService();
   const keyRepreneurs = ['repreneurs'];
 
@@ -85,42 +390,94 @@ function RouteComponent() {
     queryFn: () => userService.byRole(USER_ROLE.REPREUNEUR),
   });
 
-
-  const keyControllers = ['controllers'];
-
-  const { data: controllers, isLoading: isControllersLoading } = useQuery({
-    queryKey: keyControllers,
-    queryFn: () => userService.byRole(USER_ROLE.CONTROLEUR),
+  const keySuperviseurs = ['superviseurs'];
+  const { data: superviseurs } = useQuery({
+    queryKey: keySuperviseurs,
+    queryFn: () => userService.byRole(USER_ROLE.SUPERVISEUR),
   });
 
   const isLoadingRepreneurs = isRepreneursLoading;
-  const isLoadingControllers = isControllersLoading;
 
   useDebounce(() => setDebouncedSearchText(searchText), 300, [searchText]);
 
-  const serviceService = new ServiceService();
+  const restaurantService = new RestaurantService();
   const operationService = new OperationService();
+  const ticketService = new TicketService();
+  const serviceService = new ServiceService();
   const queryClient = useQueryClient();
 
-  // Récupérer le service
-  const { data: service, isLoading: isLoadingService } = useQuery({
-    queryKey: ['service', restaurantId],
-    queryFn: () => serviceService.getOne(restaurantId),
-    enabled: !!restaurantId
+  // Récupérer les tickets pour la sélection
+  const { data: tickets, isLoading: isLoadingTickets } = useQuery({
+    queryKey: [QUERY_KEYS.TICKETS],
+    queryFn: () => ticketService.getAll(),
   });
 
+  // Récupérer tous les services de type restaurant (créés par l'administrateur)
+  const { data: allRestaurantServices, isLoading: isLoadingAllServices } = useQuery({
+    queryKey: ['services_by_type', TypeService.RESTAURANT],
+    queryFn: () => serviceService.getByType(TypeService.RESTAURANT),
+  });
 
-  // Mutation pour activer/désactiver le service
-  const { mutate: toggleServiceStatus, isPending: isTogglingStatus } = useMutation({
-    mutationFn: (data: any) => serviceService.update(restaurantId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['service', restaurantId] });
-      queryClient.invalidateQueries({ queryKey: ['restaurants'] });
-      message.success('Statut du service modifié avec succès');
-    },
-    onError: () => {
-      message.error('Erreur lors de la modification du statut');
+  // Récupérer le restaurant (avec services peuplés)
+  const { data: service, isLoading: isLoadingService } = useQuery({
+    queryKey: ['restaurant', restaurantId],
+    queryFn: () => restaurantService.getOne(restaurantId),
+    enabled: !!restaurantId,
+  });
+
+  // Tickets dérivés des services du restaurant
+  const restaurantTickets = useMemo(() => {
+    if (!service?.services) return [];
+    const tickets: Ticket[] = [];
+    const seenIds = new Set<string>();
+    for (const entry of service.services) {
+      const svc = typeof entry.service === 'object' ? entry.service : null;
+      const ticket = svc && typeof svc.ticket === 'object' ? svc.ticket : null;
+      if (ticket && ticket._id && !seenIds.has(ticket._id)) {
+        tickets.push(ticket);
+        seenIds.add(ticket._id);
+      }
     }
+    return tickets;
+  }, [service]);
+
+  // Prix repreneur par ticket, dérivés des entrées de services du restaurant
+  const restaurantPrixRepreneur = useMemo(() => {
+    if (!service?.services) return {};
+    const prix: Record<string, number> = {};
+    for (const entry of service.services) {
+      const svc = typeof entry.service === 'object' ? entry.service : null;
+      const ticket = svc && typeof svc.ticket === 'object' ? svc.ticket : null;
+      if (ticket && ticket._id && entry.prixRepreneur != null) {
+        prix[ticket._id] = entry.prixRepreneur;
+      }
+    }
+    return prix;
+  }, [service]);
+
+  // Repreneur dérivé
+  const restaurantGerant = useMemo(() => {
+    if (!service?.repreneur) return null;
+    const repreneurId = service.repreneur;
+    const user = repreneurs?.find((u: any) => u._id === repreneurId);
+    return user || null;
+  }, [service, repreneurs]);
+
+  // Superviseur dérivé
+  const restaurantSuperviseur = useMemo(() => {
+    if (!service?.superviseur) return null;
+    const superviseurId = service.superviseur;
+    const user = superviseurs?.find((u: any) => u._id === superviseurId);
+    return user || null;
+  }, [service, superviseurs]);
+
+  // Mutation pour activer/désactiver le restaurant
+  const { mutate: toggleServiceStatus, isPending: isTogglingStatus } = useMutation({
+    mutationFn: (data: any) => restaurantService.update(restaurantId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant', restaurantId] });
+      queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.RESTAURANTS] });
+    },
   });
 
   // Handler pour le switch
@@ -128,170 +485,220 @@ function RouteComponent() {
     toggleServiceStatus({ active: checked });
   };
 
-  // Mutation pour mettre à jour la configuration des agents et gérant
+  // Mutation pour mettre à jour la configuration du restaurant
   const { mutate: updateConfiguration, isPending: isUpdatingConfig } = useMutation({
-    mutationFn: (data: any) => serviceService.update(restaurantId, data),
+    mutationFn: (data: any) => restaurantService.update(restaurantId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['service', restaurantId] });
-      message.success('Configuration mise à jour avec succès');
+      queryClient.invalidateQueries({ queryKey: ['restaurant', restaurantId] });
       setConfigModalOpen(false);
-      form.resetFields();
+      setConfigRepreneur(undefined);
+      setConfigSuperviseur(undefined);
     },
-    onError: () => {
-      message.error('Erreur lors de la mise à jour de la configuration');
-    }
   });
 
   // Handler pour ouvrir le modal de configuration
   const handleOpenConfig = () => {
-    form.setFieldsValue({
-      gerant: service?.gerant?._id,
-      agentsControle: service?.agentsControle?.filter(isUserObject).map((agent) => agent._id) || []
-    });
+    setConfigRepreneur(service?.repreneur || undefined);
+    setConfigSuperviseur(service?.superviseur || undefined);
     setConfigModalOpen(true);
   };
 
   // Handler pour soumettre la configuration
-  const handleSubmitConfig = (values: any) => {
-    updateConfiguration(values);
+  const handleSubmitConfig = () => {
+    updateConfiguration({
+      repreneur: configRepreneur,
+      superviseur: configSuperviseur,
+    });
   };
 
-  // Mutation pour mettre à jour les prix repreneur
-  const { mutate: updatePrixRepreneur, isPending: isUpdatingPrix } = useMutation({
-    mutationFn: (data: any) => serviceService.update(restaurantId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['service', restaurantId] });
-      message.success('Prix repreneur mis à jour avec succès');
-      setPrixModalOpen(false);
-      prixForm.resetFields();
+  // Helpers pour gérer la liste des services du restaurant
+  const getRestaurantServiceIds = useMemo(() => {
+    if (!service?.services) return [];
+    return service.services.map((entry: RestaurantServiceEntry) =>
+      typeof entry.service === 'object' ? (entry.service as Service)._id : entry.service as string
+    );
+  }, [service]);
+
+  // Helper: serialize entries to { service: id, prixRepreneur } for backend
+  const serializeEntries = (entries: RestaurantServiceEntry[]): { service: string; prixRepreneur: number }[] =>
+    entries.map((entry) => ({
+      service: typeof entry.service === 'object' ? (entry.service as Service)._id : entry.service as string,
+      prixRepreneur: entry.prixRepreneur,
+    }));
+
+  // Mutation pour assigner des services existants au restaurant (avec prixRepreneur)
+  const { mutate: assignServices, isPending: isAssigningServices } = useMutation({
+    mutationFn: async (entries: RestaurantServiceEntry[]) => {
+      const existing = service?.services || [];
+      const merged = [...existing];
+      for (const newEntry of entries) {
+        const newSvcId = typeof newEntry.service === 'object' ? (newEntry.service as Service)._id : newEntry.service as string;
+        const alreadyExists = merged.some((e) => {
+          const existingId = typeof e.service === 'object' ? (e.service as Service)._id : e.service as string;
+          return existingId === newSvcId;
+        });
+        if (!alreadyExists) {
+          merged.push(newEntry);
+        }
+      }
+      return restaurantService.update(restaurantId, { services: serializeEntries(merged) });
     },
-    onError: () => {
-      message.error('Erreur lors de la mise à jour des prix');
-    }
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant', restaurantId] });
+      setServiceDrawerOpen(false);
+      setSelectedServices([]);
+      setServicePrices({});
+    },
   });
 
-  // Handler pour ouvrir le modal de configuration des prix
-  const handleOpenPrixConfig = () => {
-    // Préparer les valeurs initiales pour le formulaire
-    const initialValues: Record<string, number | null> = {};
-    service?.ticketsacceptes?.forEach((ticket: any) => {
-      const ticketId = ticket._id;
-      if (ticketId) {
-        initialValues[`prix_${ticketId}`] = service?.prixRepreneur?.[ticketId] || null;
-      }
-    });
-    prixForm.setFieldsValue(initialValues);
-    setPrixModalOpen(true);
+  // Mutation pour retirer un service du restaurant (ne supprime pas le service)
+  const { mutate: removeServiceFromRestaurant, isPending: isRemovingService } = useMutation({
+    mutationFn: async (id: string) => {
+      const remaining = (service?.services || []).filter((entry: RestaurantServiceEntry) => {
+        const svcId = typeof entry.service === 'object' ? (entry.service as Service)._id : entry.service as string;
+        return svcId !== id;
+      });
+      return restaurantService.update(restaurantId, { services: serializeEntries(remaining) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant', restaurantId] });
+    },
+  });
+
+  const openAssignDrawer = () => {
+    setSelectedServices([]);
+    setServicePrices({});
+    setServiceDrawerOpen(true);
   };
 
-  // Handler pour soumettre les prix repreneur
-  const handleSubmitPrix = (values: any) => {
-    // Transformer les valeurs du formulaire en objet prixRepreneur
-    const prixRepreneur: Record<string, number> = {};
-    Object.keys(values).forEach(key => {
-      if (key.startsWith('prix_') && values[key] !== null && values[key] !== undefined) {
-        const ticketId = key.replace('prix_', '');
-        prixRepreneur[ticketId] = values[key];
-      }
-    });
-    updatePrixRepreneur({ prixRepreneur });
+  const handleAssignServices = () => {
+    const entries: RestaurantServiceEntry[] = selectedServices.map((id) => ({
+      service: id,
+      prixRepreneur: servicePrices[id] ?? 0,
+    }));
+    assignServices(entries);
   };
 
-  // Préparer les options pour les gérants (repreneurs uniquement)
+  const handleRemoveService = (id: string) => {
+    removeServiceFromRestaurant(id);
+  };
+
+  // Mutation pour modifier le prixRepreneur d'un service assigné
+  const { mutate: updateServiceEntry, isPending: isUpdatingServiceEntry } = useMutation({
+    mutationFn: async (data: { serviceId: string; prixRepreneur: number }) => {
+      const updated = (service?.services || []).map((entry: RestaurantServiceEntry) => {
+        const svcId = typeof entry.service === 'object' ? (entry.service as Service)._id : entry.service as string;
+        if (svcId === data.serviceId) {
+          return { ...entry, prixRepreneur: data.prixRepreneur };
+        }
+        return entry;
+      });
+      return restaurantService.update(restaurantId, { services: serializeEntries(updated) });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['restaurant', restaurantId] });
+      setEditServiceModalOpen(false);
+      setEditServiceId('');
+      setEditServiceNom('');
+      setEditPrixRepreneur(0);
+    },
+  });
+
+  const handleEditServiceEntry = (record: RestaurantServiceEntry) => {
+    const svcId = typeof record.service === 'object' ? (record.service as Service)._id : record.service as string;
+    const svc = typeof record.service === 'object' ? record.service : null;
+    setEditServiceId(svcId);
+    setEditServiceNom(svc?.nom || 'Service');
+    setEditPrixRepreneur(record.prixRepreneur);
+    setEditServiceModalOpen(true);
+  };
+
+  const handleSubmitEditService = () => {
+    updateServiceEntry({
+      serviceId: editServiceId,
+      prixRepreneur: editPrixRepreneur,
+    });
+  };
+
+  // Préparer les options pour les repreneurs
   const gerantOptions = useMemo(() => {
     if (!repreneurs) return [];
     return repreneurs.map((user: any) => ({
       value: user._id,
-      label: `${user.name} ${user.email}`
+      label: `${user.name} ${user.email}`,
     }));
   }, [repreneurs]);
 
-  // Préparer les options pour les agents de contrôle (tous les utilisateurs)
-  const agentOptions = useMemo(() => {
-    if (!controllers) return [];
-    return controllers.map((user: any) => ({
+  // Préparer les options pour les superviseurs
+  const superviseurOptions = useMemo(() => {
+    if (!superviseurs) return [];
+    return superviseurs.map((user: any) => ({
       value: user._id,
-      label: `${user.name} ${user.email}`
+      label: `${user.name} ${user.email}`,
     }));
-  }, [controllers]);
-
-  // Options pour le filtre par agent (basé sur les agents assignés au service)
-  const agentFilterOptions = useMemo(() => {
-    if (!service?.agentsControle) return [];
-    return service.agentsControle.map((agent: any) => ({
-      value: agent._id,
-      label: agent.name
-    }));
-  }, [service?.agentsControle]);
+  }, [superviseurs]);
 
   // Récupérer les opérations d'utilisation du service
   const { data: operations, isLoading: isLoadingOperations } = useQuery({
     queryKey: ['operations_by_service', restaurantId],
     queryFn: () => operationService.byService(restaurantId),
-    enabled: !!restaurantId
+    enabled: !!restaurantId,
   });
 
   // Filtrer les opérations
   const filteredOperations = useMemo(() => {
     if (!operations) return [];
 
-    return operations.filter((op: any) => {
+    return operations.filter((op: Operation) => {
       // Filtre par date
-      if (dateRange && dateRange.length === 2 && dateRange[0] && dateRange[1]) {
+      if (dateRange && dateRange[0] && dateRange[1]) {
         const opDate = dayjs(op.createdAt);
-        const rangeStart = dateRange[0].startOf('day');
-        const rangeEnd = dateRange[1].endOf('day');
-        if (!opDate.isBetween(rangeStart, rangeEnd, null, '[]')) {
+        const startDate = dateRange[0].startOf('day');
+        const endDate = dateRange[1].endOf('day');
+        if (!opDate.isBetween(startDate, endDate, 'day', '[]')) {
           return false;
         }
       }
 
       // Filtre par ticket
-      if (selectedTicket && op.ticket?._id !== selectedTicket) {
+      if (selectedTicket && op.ticketSnapshot?._id !== selectedTicket) {
         return false;
       }
 
-      // Filtre par agent
-      if (selectedAgent && op.agentControle?._id !== selectedAgent) {
-        return false;
-      }
-
-      // Filtre par recherche
+      // Filtre par recherche textuelle
       if (debouncedSearchText) {
         const searchLower = debouncedSearchText.toLowerCase();
-        const studentName = `${op.compte?.etudiant?.prenom || ''} ${op.compte?.etudiant?.nom || ''}`.toLowerCase();
-        const studentCode = op.compte?.code?.toLowerCase() || '';
-        const ticketName = op.ticket?.nom?.toLowerCase() || '';
-        
-        if (!studentName.includes(searchLower) && 
-            !studentCode.includes(searchLower) && 
-            !ticketName.includes(searchLower)) {
-          return false;
-        }
+        const etudiant = op.compte?.etudiant;
+        const matchText =
+          etudiant?.prenom?.toLowerCase().includes(searchLower) ||
+          etudiant?.nom?.toLowerCase().includes(searchLower) ||
+          etudiant?.ncs?.toLowerCase().includes(searchLower) ||
+          op.compte?.code?.toLowerCase().includes(searchLower);
+        if (!matchText) return false;
       }
 
       return true;
     });
-  }, [operations, dateRange, selectedTicket, selectedAgent, debouncedSearchText]);
+  }, [operations, dateRange, selectedTicket, debouncedSearchText]);
 
   // Calculer les statistiques avec montants des opérations
   const statistics = useMemo(() => {
     const total = filteredOperations.length;
-    
+
     const totalAmount = filteredOperations.reduce((acc: number, op: any) => {
-      return acc + (op.serviceSnapshot?.prixRepreneur?.[op.ticket] || 0);
+      return acc + (op.ticketSnapshot?.prix || 0);
     }, 0);
 
     // Grouper par ticket avec calcul du prix repreneur
     const byTicket = filteredOperations.reduce((acc: any, op: any) => {
       const ticketId = op.ticket;
       if (!ticketId) return acc;
-      
+
       if (!acc[ticketId]) {
         const prixStandard = op.ticketSnapshot?.prix || 0;
-        const prixRepreneur = service?.prixRepreneur?.[ticketId];
+        const prixRepreneur = restaurantPrixRepreneur[ticketId];
         const prixEffectif = prixRepreneur !== undefined && prixRepreneur !== null ? prixRepreneur : prixStandard;
-        
+
         acc[ticketId] = {
           nom: op.ticketSnapshot?.nom,
           prix: prixEffectif,
@@ -300,126 +707,59 @@ function RouteComponent() {
           count: 0,
           total: 0,
           totalStandard: 0,
-          totalRepreneur: 0
+          totalRepreneur: 0,
         };
       }
       acc[ticketId].count += 1;
-      
+
       // Calculer les totaux
       const ticketPrixStandard = op.ticketSnapshot?.prix || 0;
-      const ticketPrixRepreneur = op.serviceSnapshot?.prixRepreneur?.[ticketId];
-      const ticketPrixEffectif = ticketPrixRepreneur !== undefined && ticketPrixRepreneur !== null 
-        ? ticketPrixRepreneur 
-        : ticketPrixStandard;
-      
+      const ticketPrixEffectif = ticketPrixStandard;
+
       // Total avec prix effectif
       acc[ticketId].total += ticketPrixEffectif;
-      
+
       // Total avec prix standard (toujours calculé)
       acc[ticketId].totalStandard = (acc[ticketId].totalStandard || 0) + ticketPrixStandard;
-      
-      // Total avec prix repreneur (uniquement si défini)
-      if (ticketPrixRepreneur !== undefined && ticketPrixRepreneur !== null) {
-        acc[ticketId].totalRepreneur = (acc[ticketId].totalRepreneur || 0) + ticketPrixRepreneur;
-      }
-      
+
+      // Total repreneur = total standard (le prix du ticket est le prix repreneur)
+      acc[ticketId].totalRepreneur = (acc[ticketId].totalRepreneur || 0) + ticketPrixStandard;
+
       return acc;
     }, {});
 
     return { total, totalAmount, byTicket };
-  }, [filteredOperations]);
+  }, [filteredOperations, restaurantPrixRepreneur]);
 
   // Options pour le select des tickets
   const ticketOptions = useMemo(() => {
-    if (!service?.ticketsacceptes) return [];
-    return service.ticketsacceptes.map((ticket: any) => ({
+    return restaurantTickets.map((ticket: any) => ({
       label: ticket.nom,
-      value: ticket._id
+      value: ticket._id,
     }));
-  }, [service]);
+  }, [restaurantTickets]);
 
-  // Colonnes du tableau
-  const columns: ColumnsType<any> = [
-    {
-      title: 'Date',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (date: string) => dayjs(date).format('DD/MM/YYYY'),
-      sorter: (a: any, b: any) => dayjs(a.createdAt).unix() - dayjs(b.createdAt).unix(),
-    },
-    {
-      title: 'Heure',
-      dataIndex: 'createdAt',
-      key: 'heure',
-      render: (date: string) => dayjs(date).format('HH:mm:ss'),
-    },
-    {
-      title: 'Étudiant',
-      key: 'etudiant',
-      render: (_: any, record: any) => {
-        const prenom = record.compte?.etudiant?.prenom || '';
-        const nom = record.compte?.etudiant?.nom || '';
-        const code = record.compte?.etudiant?.ncs || '';
-        
-        return (
-          <div>
-            <Text strong className="block">{prenom} {nom}</Text>
-            <Text type="secondary" className="text-xs">{code}</Text>
-          </div>
-        );
-      },
-    },
-    {
-      title: 'Ticket',
-      key: 'ticketSnapshot',
-      render: (_:any, record:any) => (
-        <Tag color="green">{record.ticketSnapshot?.nom}</Tag>
-      ),
-    },
-    {
-      title: 'Prix',
-      key: 'prix',
-      align: 'right' as const,
-      render: (_:any, record:any) => {
-        const ticketId = record.ticketSnapshot?._id;
-        const prixStandard = record.ticketSnapshot?.prix || 0;
-        const prixRepreneur = record.serviceSnapshot?.prixRepreneur?.[ticketId];
-        const prixEffectif = prixRepreneur !== undefined && prixRepreneur !== null 
-          ? prixRepreneur 
-          : prixStandard;
+  const ticketLabelMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    (tickets || []).forEach((t: any) => {
+      if (t._id) map[t._id] = `${t.nom} (${t.prix} FCFA)`;
+    });
+    return map;
+  }, [tickets]);
 
-        return (
-          <Space orientation="vertical" size={0} align="end">
-            <Text strong>{prixEffectif?.toLocaleString('fr-FR')} FCFA</Text>
-            {prixRepreneur !== undefined && prixRepreneur !== null && (
-              <Text type="secondary" className="text-xs">
-                (Standard: {prixStandard?.toLocaleString('fr-FR')} FCFA)
-              </Text>
-            )}
-          </Space>
-        );
-      },
-    },
-    {
-      title: 'Agent',
-      key: 'agent',
-      render: (_: any, record: any) => (
-        <Text type="secondary">
-          {record.agentControle?.name || 'Non assigné'}
-        </Text>
-      ),
-    },
-  ];
+  // Available services for assign drawer (not already assigned)
+  const availableServices = useMemo(() => {
+    if (!allRestaurantServices) return [];
+    return allRestaurantServices.filter((svc: Service) => !getRestaurantServiceIds.includes(svc._id));
+  }, [allRestaurantServices, getRestaurantServiceIds]);
 
   // Générer le rapport PDF
   const handleGenerateReport = () => {
     if (!dateRange || !dateRange[0] || !dateRange[1]) {
-      message.error('Veuillez sélectionner une période');
       return;
     }
 
     if (filteredOperations.length === 0) {
-      message.error('Aucune opération à imprimer');
       return;
     }
 
@@ -438,10 +778,7 @@ function RouteComponent() {
       ],
       // Lignes de données
       ...filteredOperations.map((op: any) => {
-        const ticketId = op.ticketSnapshot?._id;
         const prixStandard = op.ticketSnapshot?.prix || 0;
-        const prixRepreneur = op.serviceSnapshot?.prixRepreneur[ticketId];
-
         return [
           { text: dayjs(op.createdAt).format('DD/MM/YYYY'), style: 'tableCell' },
           { text: dayjs(op.createdAt).format('HH:mm:ss'), style: 'tableCell' },
@@ -449,13 +786,11 @@ function RouteComponent() {
           { text: op.compte?.etudiant?.ncs || '', style: 'tableCell', fontSize: 8 },
           { text: op.ticketSnapshot?.nom || '', style: 'tableCell' },
           { text: `${prixStandard?.toLocaleString('fr-FR')} FCFA`, style: 'tableCell', alignment: 'right' },
-          { 
-            text: prixRepreneur !== undefined && prixRepreneur !== null 
-              ? `${prixRepreneur?.toLocaleString('fr-FR')} FCFA` 
-              : '-', 
-            style: 'tableCell', 
+          {
+            text: `${prixStandard?.toLocaleString('fr-FR')} FCFA`,
+            style: 'tableCell',
             alignment: 'right',
-            color: prixRepreneur !== undefined && prixRepreneur !== null ? '#10B981' : '#999'
+            color: '#10B981',
           },
           { text: op.agentControle?.name || 'Non assigné', style: 'tableCell', fontSize: 8 },
         ];
@@ -469,19 +804,19 @@ function RouteComponent() {
         { text: data.nom, style: 'tableCell', bold: true } as any,
         { text: data.count.toString(), style: 'tableCell', alignment: 'center' } as any,
         { text: `${data.prixStandard?.toLocaleString('fr-FR')} FCFA`, style: 'tableCell', alignment: 'right' } as any,
-        { 
+        {
           text: hasPrixRepreneur ? `${data.prixRepreneur?.toLocaleString('fr-FR')} FCFA` : '-',
-          style: 'tableCell', 
-          alignment: 'right',
-          color: hasPrixRepreneur ? '#10B981' : '#999'
-        } as any,
-        { text: `${data.totalStandard?.toLocaleString('fr-FR')} FCFA`, style: 'tableCell', alignment: 'right' } as any,
-        { 
-          text: hasPrixRepreneur ? `${data.totalRepreneur?.toLocaleString('fr-FR')} FCFA` : '-',
-          style: 'tableCell', 
+          style: 'tableCell',
           alignment: 'right',
           color: hasPrixRepreneur ? '#10B981' : '#999',
-          bold: true
+        } as any,
+        { text: `${data.totalStandard?.toLocaleString('fr-FR')} FCFA`, style: 'tableCell', alignment: 'right' } as any,
+        {
+          text: hasPrixRepreneur ? `${data.totalRepreneur?.toLocaleString('fr-FR')} FCFA` : '-',
+          style: 'tableCell',
+          alignment: 'right',
+          color: hasPrixRepreneur ? '#10B981' : '#999',
+          bold: true,
         } as any,
       ];
     });
@@ -505,7 +840,7 @@ function RouteComponent() {
             width: 'auto',
             stack: [
               { text: dayjs().format('DD/MM/YYYY HH:mm'), style: 'date', alignment: 'right' },
-              { text: service?.restaurant?.nom || '', style: 'restaurant', alignment: 'right', color: '#666' },
+              { text: service?.nom || '', style: 'restaurant', alignment: 'right', color: '#666' },
             ],
           },
         ],
@@ -537,8 +872,8 @@ function RouteComponent() {
             {
               width: 'auto',
               stack: [
-                { text: 'Gérant', style: 'sectionTitle' },
-                { text: service?.gerant?.nom || 'Non assigné', style: 'period' },
+                { text: 'Repreneur', style: 'sectionTitle' },
+                { text: restaurantGerant?.name || 'Non assigné', style: 'period' },
               ],
             },
           ],
@@ -693,7 +1028,7 @@ function RouteComponent() {
                   fontSize: 11,
                   alignment: 'right',
                   fillColor: '#D1FAE5',
-                  color: '#10B981'
+                  color: '#10B981',
                 } as any,
               ],
             ] as any,
@@ -775,510 +1110,675 @@ function RouteComponent() {
     // Générer et ouvrir le PDF
     try {
       pdfMake.createPdf(docDefinition).open();
-      message.success('Rapport généré avec succès');
     } catch (error) {
       console.error('Erreur lors de la génération du PDF:', error);
-      message.error('Erreur lors de la génération du rapport');
     }
   };
 
-  const isLoading = isLoadingService || isLoadingOperations || isLoadingRepreneurs || isLoadingControllers;
+  const isLoading = isLoadingService || isLoadingOperations || isLoadingRepreneurs || isLoadingTickets || isLoadingAllServices;
 
   return (
-    <div className="p-6">
-      <Spin spinning={isLoading}>
-        <Card>
-          {/* Header */}
-          <div className="mb-6">
-              <Button 
-              icon={<ArrowLeftOutlined />}
-              onClick={() => navigate({ to: '/admin/restaurations' })}
-              className="mb-4"
-            >
-              Retour aux services
-            </Button>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Title level={2} className="mb-2">
-                  <ShopOutlined className="mr-2" />
-                  {service?.nom}
-                </Title>
-                {service?.description && (
-                  <Text type="secondary">{service.description}</Text>
-                )}
-                {service?.restaurant && (
-                  <div className="mt-2">
-                    <Tag color="blue" icon={<ShopOutlined />}>
-                      {service.restaurant.nom}
-                    </Tag>
-                  </div>
-                )}
+    <div className="space-y-6">
+      {/* Hero Header */}
+      <Card className="border-border/60 shadow-none">
+        <CardContent className="px-5 py-5">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-col gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate({ to: '/admin/restaurations' })}
+              >
+                <ArrowLeft className="size-4" />
+                Retour
+              </Button>
+              <div className="flex size-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+                <Store className="size-7" />
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Text>Statut:</Text>
-                  <Switch
-                    checked={service?.active}
-                    onChange={handleToggleStatus}
-                    loading={isTogglingStatus}
-                    checkedChildren="Ouverte"
-                    unCheckedChildren="Fermée"
-                  />
-                </div>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Restaurant
+              </p>
+              <h2 className="mb-1 mt-1 text-xl font-bold text-foreground">
+                {service?.nom}
+              </h2>
+              <div className="flex flex-wrap items-center gap-2">
                 {service?.active ? (
-                  <Tag color="success" className="text-md px-2 py-1">Ouverte</Tag>
+                  <StatusBadge active={true} />
                 ) : (
-                  <Tag color="error" className="text-md px-2 py-1">Fermée</Tag>
+                  <StatusBadge active={false} />
+                )}
+                {service?.localisation && (
+                  <span className="inline-flex items-center gap-1 rounded-full border bg-sky-50 text-sky-700 border-sky-200 px-2.5 py-0.5 text-xs font-semibold dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900">
+                    <MapPin className="size-3" />
+                    {service.localisation}
+                  </span>
                 )}
               </div>
             </div>
-          </div>
-
-          <Divider />
-
-          {/* Configuration des Agents et Gérant */}
-          <Card className="mb-6" title={
-            <Space>
-              <TeamOutlined />
-              <span>Configuration du Personnel</span>
-            </Space>
-          } extra={
-            <Space>
-              <Button
-                type="primary"
-                icon={<SettingOutlined />}
-                onClick={handleOpenConfig}
-                style={{ background: '#422AFB', borderColor: '#422AFB' }}
-              >
-                Configurer Personnel
-              </Button>
-              <Button
-                type="primary"
-                icon={<DollarCircleOutlined />}
-                onClick={handleOpenPrixConfig}
-                style={{ background: '#10B981', borderColor: '#10B981' }}
-              >
-                Prix Repreneur
-              </Button>
-            </Space>
-          }>
-            <Row gutter={16}>
-              {/* Gérant */}
-              <Col xs={24} md={12}>
-                <Card className="bg-blue-50">
-                  <Space direction="vertical" className="w-full">
-                    <div className="flex items-center gap-2">
-                      <UserOutlined className="text-blue-600 text-xl" />
-                      <Text strong className="text-lg">Gérant du Service</Text>
-                    </div>
-                    {service?.gerant ? (
-                      <div className="flex items-center gap-3 mt-2">
-                        <Avatar size={48} icon={<UserOutlined />} className="bg-blue-500" />
-                        <div>
-                          <Text strong className="block">
-                            {service.gerant.nom} {service.gerant.prenom}
-                          </Text>
-                          <Text type="secondary" className="text-sm">
-                            {service.gerant.email}
-                          </Text>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 text-gray-400 mt-2">
-                        <UserAddOutlined />
-                        <Text type="secondary">Aucun gérant assigné</Text>
-                      </div>
-                    )}
-                  </Space>
-                </Card>
-              </Col>
-
-              {/* Agents de Contrôle */}
-              <Col xs={24} md={12}>
-                <Card className="bg-green-50">
-                  <Space orientation="vertical" className="w-full">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <TeamOutlined className="text-green-600 text-xl" />
-                        <Text strong className="text-lg">Agents de Contrôle</Text>
-                      </div>
-                      <Tag color="green">
-                        {service?.agentsControle?.length || 0} agent(s)
-                      </Tag>
-                    </div>
-                    {service?.agentsControle && service.agentsControle.length > 0 ? (
-                      <List
-                        size="small"
-                        dataSource={service.agentsControle}
-                        renderItem={(agent: any) => (
-                          <List.Item className="px-0">
-                            <List.Item.Meta
-                              avatar={<Avatar size={32} icon={<UserOutlined />} className="bg-green-500" />}
-                              title={`${agent.name}`}
-                              description={agent.email}
-                            />
-                          </List.Item>
-                        )}
-                      />
-                    ) : (
-                      <div className="flex items-center gap-2 text-gray-400 mt-2">
-                        <UserAddOutlined />
-                        <Text type="secondary">Aucun agent assigné</Text>
-                      </div>
-                    )}
-                  </Space>
-                </Card>
-              </Col>
-            </Row>
-          </Card>
-
-          <Divider />
-
-          {/* Statistiques */}
-          <Row gutter={16} className="mb-6">
-            <Col xs={24} sm={12} md={8}>
-              <Card>
-                <Statistic
-                  title="Total Utilisations"
-                  value={statistics.total}
-                  prefix={<UserOutlined />}
-                  valueStyle={{ color: '#3f8600' }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <Card>
-                <Statistic
-                  title="Montant Total"
-                  value={statistics.totalAmount}
-                  suffix="FCFA"
-                  prefix={<DollarOutlined />}
-                  valueStyle={{ color: '#cf1322' }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={12} md={8}>
-              <Card>
-                <Statistic
-                  title="Types de Tickets"
-                  value={Object.keys(statistics.byTicket).length}
-                  prefix={<FileTextOutlined />}
-                  valueStyle={{ color: '#1890ff' }}
-                />
-              </Card>
-            </Col>
-          </Row>
-
-          <Divider />
-
-          {/* Filtres */}
-          <Card className="mb-6 bg-gray-50">
-            <Title level={5} className="mb-4">Filtres et Actions</Title>
-            <Space direction="vertical" size="middle" className="w-full">
-              <Row gutter={16}>
-                <Col xs={24} md={6}>
-                  <RangePicker
-                    className="w-full"
-                    placeholder={['Date début', 'Date fin']}
-                    value={dateRange}
-                    onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
-                    format="DD/MM/YYYY"
+            {canEdit && (
+              <div className="min-w-[220px] rounded-xl border border-border bg-muted px-5 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Statut
+                </p>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <span className="text-sm font-medium text-foreground">
+                    {service?.active ? 'Ouvert' : 'Fermé'}
+                  </span>
+                  <ToggleSwitch
+                    checked={service?.active ?? false}
+                    onChange={handleToggleStatus}
+                    disabled={!canEdit}
+                    loading={isTogglingStatus}
                   />
-                </Col>
-                <Col xs={24} md={6}>
-                  <Select
-                    className="w-full"
-                    placeholder="Filtrer par ticket"
-                    allowClear
-                    value={selectedTicket}
-                    onChange={setSelectedTicket}
-                    options={ticketOptions}
-                  />
-                </Col>
-                <Col xs={24} md={6}>
-                  <Select
-                    className="w-full"
-                    placeholder="Filtrer par agent"
-                    allowClear
-                    value={selectedAgent}
-                    onChange={setSelectedAgent}
-                    options={agentFilterOptions}
-                  />
-                </Col>
-                <Col xs={24} md={6}>
-                  <Input
-                    placeholder="Rechercher étudiant, code..."
-                    prefix={<SearchOutlined />}
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                    allowClear
-                  />
-                </Col>
-              </Row>
-              <Row>
-                <Col span={24}>
-                  <Button
-                    type="primary"
-                    icon={<PrinterOutlined />}
-                    onClick={handleGenerateReport}
-                    disabled={!dateRange || filteredOperations.length === 0}
-                    size="large"
-                  >
-                    Imprimer les opérations
-                  </Button>
-                </Col>
-              </Row>
-            </Space>
-          </Card>
-
-          {/* Tableau des opérations */}
-          <Card title={`Liste des Utilisations (${filteredOperations.length})`}>
-            <Table
-              columns={columns}
-              dataSource={filteredOperations}
-              rowKey="_id"
-              pagination={{
-                pageSize: 20,
-                showSizeChanger: true,
-                showTotal: (total) => `Total: ${total} utilisations`,
-              }}
-              scroll={{ x: 1000 }}
-            />
-          </Card>
-
-          {/* Détails par ticket */}
-          {Object.keys(statistics.byTicket).length > 0 && (
-            <Card title="Récapitulatif par Ticket" className="mt-6">
-              <Row gutter={16}>
-                {Object.entries(statistics.byTicket).map(([ticketId, data]: [string, any]) => {
-                  const hasPrixRepreneur = data.prixRepreneur !== undefined && data.prixRepreneur !== null;
-                  return (
-                    <Col xs={24} sm={12} md={8} key={ticketId}>
-                      <Card className="bg-green-50">
-                        <div className="flex items-center justify-between mb-2">
-                          <Title level={5} className="mb-0">{data.nom}</Title>
-                          {hasPrixRepreneur && (
-                            <Tag color="green" icon={<DollarCircleOutlined />}>
-                              Prix Repreneur
-                            </Tag>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <div className="flex justify-between">
-                            <Text type="secondary">Prix unitaire:</Text>
-                            <Text strong>{data.prix?.toLocaleString('fr-FR')} FCFA</Text>
-                          </div>
-                          {hasPrixRepreneur && (
-                            <div className="flex justify-between">
-                              <Text type="secondary" className="text-xs">Prix standard:</Text>
-                              <Text type="secondary" className="text-xs">
-                                {data.prixStandard?.toLocaleString('fr-FR')} FCFA
-                              </Text>
-                            </div>
-                          )}
-                          <div className="flex justify-between">
-                            <Text type="secondary">Quantité:</Text>
-                            <Text strong>{data.count}</Text>
-                          </div>
-                          <Divider className="my-2" />
-                          <div className="flex justify-between">
-                            <Text strong>Total:</Text>
-                            <Text strong className="text-green-600">
-                              {data.total?.toLocaleString('fr-FR')} FCFA
-                            </Text>
-                          </div>
-                        </div>
-                      </Card>
-                    </Col>
-                  );
-                })}
-              </Row>
-            </Card>
-          )}
-        </Card>
-      </Spin>
-
-      {/* Modal de Configuration */}
-      <Modal
-        title={
-          <Space>
-            <SettingOutlined />
-            <span>Configuration du Personnel</span>
-          </Space>
-        }
-        open={configModalOpen}
-        onCancel={() => {
-          setConfigModalOpen(false);
-          form.resetFields();
-        }}
-        footer={null}
-        width={600}
-      >
-        <Spin spinning={isUpdatingConfig || isLoadingRepreneurs}>
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleSubmitConfig}
-            className="mt-4"
-          >
-            <Form.Item
-              name="gerant"
-              label="Gérant du Service"
-              rules={[{ required: true, message: 'Le gérant est requis' }]}
-              tooltip="Seuls les utilisateurs avec le rôle 'repreneur' peuvent être gérants"
-            >
-              <Select
-                size="large"
-                showSearch
-                placeholder="Sélectionner un gérant (repreneur)"
-                options={gerantOptions}
-                loading={isLoadingRepreneurs}
-                suffixIcon={<UserOutlined />}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="agentsControle"
-              label="Agents de Contrôle"
-              tooltip="Sélectionnez les agents qui pourront contrôler les tickets dans ce service"
-            >
-              <Select
-                mode="multiple"
-                size="large"
-                showSearch
-                placeholder="Sélectionner des agents"
-                options={agentOptions}
-                loading={isLoadingControllers}
-                suffixIcon={<TeamOutlined />}
-              />
-            </Form.Item>
-
-            <Form.Item className="mb-0 mt-6">
-              <Space className="w-full justify-end">
-                <Button onClick={() => {
-                  setConfigModalOpen(false);
-                  form.resetFields();
-                }}>
-                  Annuler
-                </Button>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={isUpdatingConfig}
-                  style={{ background: '#422AFB', borderColor: '#422AFB' }}
-                >
-                  Enregistrer
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Spin>
-      </Modal>
-
-      {/* Modal de Configuration des Prix Repreneur */}
-      <Modal
-        title={
-          <Space>
-            <DollarCircleOutlined />
-            <span>Configuration des Prix Repreneur</span>
-          </Space>
-        }
-        open={prixModalOpen}
-        onCancel={() => {
-          setPrixModalOpen(false);
-          prixForm.resetFields();
-        }}
-        footer={null}
-        width={700}
-      >
-        <Spin spinning={isUpdatingPrix}>
-          <div className="mb-4">
-            <Text type="secondary">
-              Définissez les prix personnalisés pour le repreneur. Si aucun prix n'est défini, le prix standard du ticket sera utilisé.
-            </Text>
-          </div>
-          <Form
-            form={prixForm}
-            layout="vertical"
-            onFinish={handleSubmitPrix}
-            className="mt-4"
-          >
-            {service?.ticketsacceptes && service.ticketsacceptes.length > 0 ? (
-              <div className="space-y-4">
-                {service.ticketsacceptes.map((ticket: Ticket) => {
-                  const ticketId = ticket._id;
-                  if (!ticketId) return null;
-                  const ticketNom = ticket.nom || 'Ticket';
-                  const prixStandard = ticket.prix || 0;
-                  const prixRepreneur = service?.prixRepreneur?.[ticketId];
-
-                  return (
-                    <Card key={ticketId} size="small" className="bg-gray-50">
-                      <Row gutter={16} align="middle">
-                        <Col xs={24} md={12}>
-                          <Space orientation="vertical" size={0}>
-                            <Text strong className="text-base">{ticketNom}</Text>
-                            <Text type="secondary" className="text-sm">
-                              Prix standard: {prixStandard?.toLocaleString('fr-FR')} FCFA
-                            </Text>
-                            {prixRepreneur && (
-                              <Tag color="green" className="mt-1">
-                                Prix actuel: {prixRepreneur?.toLocaleString('fr-FR')} FCFA
-                              </Tag>
-                            )}
-                          </Space>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item
-                            name={`prix_${ticketId}`}
-                            label="Prix Repreneur (FCFA)"
-                            className="mb-0"
-                            tooltip="Laissez vide pour utiliser le prix standard"
-                          >
-                            <InputNumber
-                              size="large"
-                              min={0}
-                              style={{ width: '100%' }}
-                              placeholder={`Prix par défaut: ${prixStandard} FCFA`}
-                              formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
-                              prefix={<DollarOutlined />}
-                            />
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    </Card>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8">
-                <Text type="secondary">Aucun ticket accepté dans ce service</Text>
+                </div>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
 
-            <Form.Item className="mb-0 mt-6">
-              <Space className="w-full justify-end">
-                <Button onClick={() => {
-                  setPrixModalOpen(false);
-                  prixForm.resetFields();
-                }}>
-                  Annuler
-                </Button>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={isUpdatingPrix}
-                  style={{ background: '#10B981', borderColor: '#10B981' }}
-                  disabled={!service?.ticketsacceptes || service.ticketsacceptes.length === 0}
+      {/* Stat cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {isLoading ? (
+          <>
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+            <StatCardSkeleton />
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="Total Utilisations"
+              value={statistics.total}
+              icon={<User className="size-5" />}
+              accent="blue"
+            />
+            <StatCard
+              label="Montant Total"
+              value={formatMontant(statistics.totalAmount)}
+              icon={<DollarSign className="size-5" />}
+              accent="emerald"
+            />
+            <StatCard
+              label="Types de Tickets"
+              value={Object.keys(statistics.byTicket).length}
+              icon={<FileText className="size-5" />}
+              accent="amber"
+            />
+          </>
+        )}
+      </div>
+
+      {/* Configuration du Personnel */}
+      <Card className="border-border/60 shadow-none">
+        <CardHeader className="border-b border-border/60 px-5 py-4">
+          <CardTitle className="text-sm font-bold text-foreground">
+            Configuration du Personnel
+          </CardTitle>
+          {canEdit && (
+            <CardAction>
+              <Button variant="outline" size="sm" onClick={handleOpenConfig}>
+                <Settings className="size-4" />
+                Configurer
+              </Button>
+            </CardAction>
+          )}
+        </CardHeader>
+        <CardContent className="px-5 py-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {/* Repreneur */}
+            <div className="rounded-xl border border-border bg-muted p-4">
+              <div className="flex items-center gap-2">
+                <User className="size-5 text-primary" />
+                <h3 className="text-base font-semibold text-foreground">Repreneur</h3>
+              </div>
+              {restaurantGerant ? (
+                <div className="mt-3 flex items-center gap-3">
+                  <Avatar className="size-12 border border-border bg-blue-500">
+                    <AvatarFallback className="bg-blue-500 text-white font-semibold">
+                      {restaurantGerant.name?.[0]?.toUpperCase() || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-foreground">
+                      {restaurantGerant.name}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      {restaurantGerant.email}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-center gap-2 text-muted-foreground/70">
+                  <UserPlus className="size-4" />
+                  <span className="text-sm text-muted-foreground">Aucun repreneur assigné</span>
+                </div>
+              )}
+            </div>
+
+            {/* Superviseur */}
+            <div className="rounded-xl border border-border bg-muted p-4">
+              <div className="flex items-center gap-2">
+                <User className="size-5 text-sky-600" />
+                <h3 className="text-base font-semibold text-foreground">Superviseur</h3>
+              </div>
+              {restaurantSuperviseur ? (
+                <div className="mt-3 flex items-center gap-3">
+                  <Avatar className="size-12 border border-border bg-sky-500">
+                    <AvatarFallback className="bg-sky-500 text-white font-semibold">
+                      {restaurantSuperviseur.name?.[0]?.toUpperCase() || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-foreground">
+                      {restaurantSuperviseur.name}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      {restaurantSuperviseur.email}
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 flex items-center gap-2 text-muted-foreground/70">
+                  <UserPlus className="size-4" />
+                  <span className="text-sm text-muted-foreground">Aucun superviseur assigné</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Services du Restaurant */}
+      <Card className="border-border/60 shadow-none">
+        <CardHeader className="border-b border-border/60 px-5 py-4">
+          <CardTitle className="text-sm font-bold text-foreground">
+            Services du Restaurant
+          </CardTitle>
+          {canEdit && (
+            <CardAction>
+              <Button size="sm" onClick={openAssignDrawer}>
+                <Plus className="size-4" />
+                Assigner des services
+              </Button>
+            </CardAction>
+          )}
+        </CardHeader>
+        <CardContent className="px-0 py-0">
+          {/* Table header (desktop only) */}
+          <div className="hidden grid-cols-[1fr_auto_auto_auto_auto] gap-4 border-b border-border/60 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
+            <span>Nom</span>
+            <span>Type</span>
+            <span>Ticket</span>
+            <span className="text-right">Prix Repreneur</span>
+            <span className="text-center">Actions</span>
+          </div>
+
+          {isAssigningServices || isRemovingService ? (
+            <ServiceTableSkeleton />
+          ) : (service?.services || []).length > 0 ? (
+            <div className="divide-y divide-border/40">
+              {(service?.services || []).map((entry: RestaurantServiceEntry) => (
+                <ServiceEntryRow
+                  key={typeof entry.service === 'object' ? (entry.service as Service)._id : entry.service as string}
+                  entry={entry}
+                  ticketLabelMap={ticketLabelMap}
+                  canEdit={canEdit}
+                  onEdit={handleEditServiceEntry}
+                  onRemove={handleRemoveService}
+                  isRemoving={isRemovingService}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Aucun service assigné à ce restaurant" />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Filtres et Actions */}
+      <Card className="border-border/60 shadow-none">
+        <CardHeader className="border-b border-border/60 px-5 py-4">
+          <CardTitle className="text-sm font-bold text-foreground">
+            Filtres et Actions
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-5 py-5">
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {/* RangePicker - kept from Ant Design */}
+              <div>
+                <Label className="mb-1.5">Période</Label>
+                <RangePicker
+                  className="w-full"
+                  placeholder={['Date début', 'Date fin']}
+                  value={dateRange}
+                  onChange={(dates) => setDateRange(dates as [Dayjs | null, Dayjs | null] | null)}
+                  format="DD/MM/YYYY"
+                />
+              </div>
+              {/* Ticket filter - native select */}
+              <div>
+                <Label className="mb-1.5">Ticket</Label>
+                <select
+                  className={nativeSelectClass}
+                  value={selectedTicket || ''}
+                  onChange={(e) => setSelectedTicket(e.target.value || null)}
                 >
-                  Enregistrer les Prix
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Spin>
-      </Modal>
+                  <option value="">Tous les tickets</option>
+                  {ticketOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Search input */}
+              <div>
+                <Label className="mb-1.5">Recherche</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Rechercher étudiant, code..."
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    className="pl-8"
+                  />
+                  {searchText && (
+                    <button
+                      onClick={() => setSearchText('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <XCircle className="size-4" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+            <Button
+              onClick={handleGenerateReport}
+              disabled={!dateRange || filteredOperations.length === 0}
+              size="lg"
+            >
+              <Printer className="size-4" />
+              Imprimer les opérations
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tableau des opérations */}
+      <Card className="border-border/60 shadow-none">
+        <CardHeader className="border-b border-border/60 px-5 py-4">
+          <CardTitle className="text-sm font-bold text-foreground">
+            Liste des Utilisations ({filteredOperations.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0 py-0">
+          {/* Table header (desktop only) */}
+          <div className="hidden grid-cols-[auto_auto_1fr_auto_auto_auto] gap-4 border-b border-border/60 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
+            <span>Date</span>
+            <span>Heure</span>
+            <span>Étudiant</span>
+            <span>Ticket</span>
+            <span className="text-right">Prix</span>
+            <span>Agent</span>
+          </div>
+
+          {isLoadingOperations ? (
+            <OperationTableSkeleton />
+          ) : filteredOperations.length > 0 ? (
+            <div className="divide-y divide-border/40">
+              {filteredOperations.map((op: any) => (
+                <OperationRow key={op._id} op={op} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="Aucune utilisation trouvée" />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Détails par ticket */}
+      {Object.keys(statistics.byTicket).length > 0 && (
+        <Card className="border-border/60 shadow-none">
+          <CardHeader className="border-b border-border/60 px-5 py-4">
+            <CardTitle className="text-sm font-bold text-foreground">
+              Récapitulatif par Ticket
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-5 py-5">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+              {Object.entries(statistics.byTicket).map(([ticketId, data]: [string, any]) => (
+                <div key={ticketId} className="rounded-xl border border-border/60 bg-card p-4 transition-all duration-300 hover:shadow-md hover:border-border">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-foreground">{data.nom}</h4>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Prix unitaire:</span>
+                      <span className="text-sm font-semibold tabular-nums text-foreground">
+                        {formatMontant(data.prix || 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Quantité:</span>
+                      <span className="text-sm font-semibold tabular-nums text-foreground">{data.count}</span>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="flex justify-between">
+                      <span className="text-sm font-semibold text-foreground">Total:</span>
+                      <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                        {formatMontant(data.total || 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Modal de Configuration (custom dialog) */}
+      {configModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => {
+            setConfigModalOpen(false);
+            setConfigRepreneur(undefined);
+            setConfigSuperviseur(undefined);
+          }}
+        >
+          <Card
+            className="w-full max-w-[600px] max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="border-b border-border/60 px-5 py-4">
+              <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                <Settings className="size-5" />
+                Configuration du Personnel
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-5 py-5">
+              {isUpdatingConfig || isLoadingRepreneurs ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-20 w-full rounded-xl" />
+                  <Skeleton className="h-20 w-full rounded-xl" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Repreneur */}
+                  <div className="rounded-xl border border-border bg-muted p-4">
+                    <Label className="mb-2">Repreneur</Label>
+                    <div className="relative">
+                      <User className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <select
+                        className={cn(nativeSelectClass, 'pl-8')}
+                        value={configRepreneur || ''}
+                        onChange={(e) => setConfigRepreneur(e.target.value || undefined)}
+                      >
+                        <option value="">Sélectionner un repreneur</option>
+                        {gerantOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Superviseur */}
+                  <div className="rounded-xl border border-border bg-muted p-4">
+                    <Label className="mb-2">Superviseur</Label>
+                    <div className="relative">
+                      <Users className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <select
+                        className={cn(nativeSelectClass, 'pl-8')}
+                        value={configSuperviseur || ''}
+                        onChange={(e) => setConfigSuperviseur(e.target.value || undefined)}
+                      >
+                        <option value="">Sélectionner un superviseur</option>
+                        {superviseurOptions.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="justify-end gap-2 border-t border-border/60 px-5 py-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setConfigModalOpen(false);
+                  setConfigRepreneur(undefined);
+                  setConfigSuperviseur(undefined);
+                }}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleSubmitConfig}
+                disabled={isUpdatingConfig || !configRepreneur || !configSuperviseur}
+              >
+                {isUpdatingConfig && <Loader2 className="size-4 animate-spin" />}
+                Enregistrer
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de modification d'un service assigné (custom dialog) */}
+      {editServiceModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => {
+            setEditServiceModalOpen(false);
+            setEditServiceId('');
+            setEditServiceNom('');
+            setEditPrixRepreneur(0);
+          }}
+        >
+          <Card
+            className="w-full max-w-[500px] max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardHeader className="border-b border-border/60 px-5 py-4">
+              <CardTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                <Pencil className="size-5" />
+                Modifier le Prix Repreneur
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-5 py-5">
+              {isUpdatingServiceEntry ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                  <Skeleton className="h-16 w-full rounded-xl" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Service name (read-only) */}
+                  <div className="rounded-xl border border-border bg-muted p-4">
+                    <Label className="mb-2">Service</Label>
+                    <Input value={editServiceNom} disabled />
+                  </div>
+
+                  {/* Prix Repreneur */}
+                  <div className="rounded-xl border border-border bg-muted p-4">
+                    <Label className="mb-2">Prix Repreneur (FCFA)</Label>
+                    <div className="relative">
+                      <DollarSign className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Prix repreneur en FCFA"
+                        value={editPrixRepreneur || ''}
+                        onChange={(e) => setEditPrixRepreneur(Number(e.target.value))}
+                        className="pl-8"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="justify-end gap-2 border-t border-border/60 px-5 py-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditServiceModalOpen(false);
+                  setEditServiceId('');
+                  setEditServiceNom('');
+                  setEditPrixRepreneur(0);
+                }}
+              >
+                Annuler
+              </Button>
+              <Button
+                onClick={handleSubmitEditService}
+                disabled={isUpdatingServiceEntry || editPrixRepreneur < 0}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isUpdatingServiceEntry && <Loader2 className="size-4 animate-spin" />}
+                Enregistrer
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {/* Drawer d'assignation de services (Sheet shadcn) */}
+      <Sheet open={serviceDrawerOpen} onOpenChange={(open) => {
+        setServiceDrawerOpen(open);
+        if (!open) {
+          setSelectedServices([]);
+          setServicePrices({});
+        }
+      }}>
+        <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Plus className="size-5" />
+              Assigner des Services
+            </SheetTitle>
+            <SheetDescription>
+              Sélectionnez les services de type restaurant à assigner.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto px-4">
+            {isAssigningServices || isLoadingAllServices ? (
+              <div className="space-y-3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-16 w-full rounded-xl" />
+                ))}
+              </div>
+            ) : availableServices.length === 0 ? (
+              <EmptyState message="Aucun service disponible à assigner" />
+            ) : (
+              <div className="space-y-4">
+                {/* Service checkboxes */}
+                <div>
+                  <Label className="mb-2">Services disponibles</Label>
+                  <div className="space-y-2">
+                    {availableServices.map((svc: Service) => {
+                      const ticketId = typeof svc.ticket === 'object' ? (svc.ticket as any)?._id : svc.ticket as string;
+                      const label = `${svc.nom} — ${ticketLabelMap[ticketId] || 'Ticket non lié'}`;
+                      const isSelected = selectedServices.includes(svc._id);
+                      return (
+                        <label
+                          key={svc._id}
+                          className={cn(
+                            'flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors',
+                            isSelected
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:bg-muted/50'
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedServices([...selectedServices, svc._id]);
+                              } else {
+                                setSelectedServices(selectedServices.filter((id) => id !== svc._id));
+                                const newPrices = { ...servicePrices };
+                                delete newPrices[svc._id];
+                                setServicePrices(newPrices);
+                              }
+                            }}
+                            className="size-4 rounded border-border accent-primary"
+                          />
+                          <span className="text-sm font-medium text-foreground">{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Prix Repreneur for selected services */}
+                {selectedServices.length > 0 && (
+                  <div className="space-y-4">
+                    <Separator />
+                    <Label className="font-semibold">Prix Repreneur (FCFA)</Label>
+                    {selectedServices.map((svcId) => {
+                      const svc = allRestaurantServices?.find((s: Service) => s._id === svcId);
+                      const svcNom = svc?.nom || svcId;
+                      return (
+                        <div key={svcId} className="rounded-xl border border-border bg-muted p-4">
+                          <Label className="mb-2">{svcNom}</Label>
+                          <div className="relative">
+                            <DollarSign className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              type="number"
+                              min={0}
+                              placeholder="Prix repreneur en FCFA"
+                              value={servicePrices[svcId] ?? ''}
+                              onChange={(e) =>
+                                setServicePrices({
+                                  ...servicePrices,
+                                  [svcId]: Number(e.target.value),
+                                })
+                              }
+                              className="pl-8"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <p className="text-sm text-muted-foreground">
+                  Seuls les services de type "restaurant" créés par l'administrateur sont listés ici.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <SheetFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setServiceDrawerOpen(false);
+                setSelectedServices([]);
+                setServicePrices({});
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleAssignServices}
+              disabled={isAssigningServices || selectedServices.length === 0}
+            >
+              {isAssigningServices && <Loader2 className="size-4 animate-spin" />}
+              Assigner
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -4,22 +4,60 @@ import { useQuery } from "@tanstack/react-query";
 import { FaServicestack, FaArrowRight, FaMoneyBill } from "react-icons/fa";
 import { ServiceService } from "@/services/service.service";
 import { useSession } from '@/auth/auth-client';
-import { QUERY_KEYS } from '@/constants';
-import { Spin, Card, Space, Typography, Empty } from 'antd';
+import { Spin, Card, Space, Typography, Empty, Tag } from 'antd';
 import { USER_ROLE } from '@/types/user.roles';
+import dayjs from '@/config/dayjs.config';
+import { useMemo } from 'react';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
+
+const DayLabels = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 
 export const Route = createFileRoute('/admin/controleurs/')({
-  beforeLoad: () => requireRole([USER_ROLE.CONTROLEUR, USER_ROLE.SUPERADMIN]),
+  beforeLoad: () => requireRole([USER_ROLE.CONTROLEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
 function RouteComponent() {
   const { data: sessionData } = useSession();
   const serviceService = new ServiceService();
-  const key = [QUERY_KEYS.SERVICES,sessionData?.user?.id];
-  const {data:services,isLoading: isLoadingF} = useQuery({ queryKey: key, queryFn:() => serviceService.byagent(sessionData?.user?.id!),enabled: !!sessionData });   
+  const key = ['services', 'by-agent', sessionData?.user?.id];
+  const {data: services, isLoading: isLoadingF} = useQuery({ queryKey: key, queryFn:() => serviceService.byagent(sessionData?.user?.id!), enabled: !!sessionData });
+
+  // Filtrer les services selon le jour et l'heure actuelle du planning
+  const activeServices = useMemo(() => {
+    if (!services) return [];
+    const now = dayjs();
+    // dayjs().day(): 0=Dimanche..6=Samedi → planning: 0=Lundi..6=Dimanche
+    const currentDay = (now.day() + 6) % 7;
+    const currentTime = now.format('HH:mm');
+
+    return services.filter(s => {
+      if (!s.planning || s.planning.length === 0) return false;
+      return s.planning.some(p => {
+        if (p.jour !== currentDay) return false;
+        if (!p.heureDebut || !p.heureFin) return false;
+        return currentTime >= p.heureDebut && currentTime <= p.heureFin;
+      });
+    });
+  }, [services]);
+
+  // Services assignés mais hors créneau (pour info)
+  const upcomingServices = useMemo(() => {
+    if (!services) return [];
+    const now = dayjs();
+    const currentDay = (now.day() + 6) % 7;
+    const currentTime = now.format('HH:mm');
+
+    return services.filter(s => {
+      if (!s.planning || s.planning.length === 0) return false;
+      return s.planning.some(p => {
+        if (p.jour !== currentDay) return false;
+        if (!p.heureDebut || !p.heureFin) return false;
+        return currentTime < p.heureDebut;
+      });
+    });
+  }, [services]);   
   return (
     <div className="controller-page">
        <Spin spinning={isLoadingF}>
@@ -32,12 +70,20 @@ function RouteComponent() {
              <Text className="controller-hero-copy">
                Sélectionnez un service pour gérer les utilisations de tickets
              </Text>
+             <div className="flex items-center gap-2 mt-2">
+               <Tag color="green">🟢 {activeServices.length} service(s) actif(s) maintenant</Tag>
+               {upcomingServices.length > 0 && (
+                 <Tag color="orange">⏳ {upcomingServices.length} à venir aujourd'hui</Tag>
+               )}
+             </div>
            </Card>
 
-           {/* Services Grid */}
+           {/* Active Services Grid */}
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-             {services?.map(s => (
-               <Link key={s._id} to='/admin/controleurs/$serviceId' params={{serviceId: s._id}} className="block group">
+             {activeServices.map(s => {
+               const ticketId = typeof s.ticket === 'object' && s.ticket?._id ? s.ticket._id : s.ticket as string;
+               return (
+               <Link key={s._id} to='/admin/controleurs/$serviceId/ticket/$ticketId' params={{serviceId: s._id, ticketId}} className="block group">
                  <Card 
                    hoverable
                    className="controller-ticket-card h-full transition-all duration-300"
@@ -55,32 +101,68 @@ function RouteComponent() {
                        <Title level={5} className="capitalize line-clamp-2 mb-0" style={{ flex: 1 }}>
                          {s.nom}
                        </Title>
-                       <span className="controller-ticket-chip">Actif</span>
+                       <span className="controller-ticket-chip">En cours</span>
                      </div>
                      
-                     {s.description && (
-                       <Paragraph type="secondary" className="line-clamp-3 min-h-[60px] mb-0">
-                         {s.description}
-                       </Paragraph>
-                     )}
-                     
-                     <div className="flex justify-between items-center pt-4 border-t border-slate-100">
+                     <div className="flex justify-between items-center pt-4 border-t border-border">
                        <Text type="secondary" style={{ fontSize: 12 }}>
                          Cliquez pour gérer
                        </Text>
                        <FaArrowRight 
                          size={12} 
-                         className="text-slate-700 group-hover:translate-x-1 transition-transform duration-200" 
+                         className="text-foreground group-hover:translate-x-1 transition-transform duration-200" 
                        />
                      </div>
                    </Space>
                  </Card>
                </Link>
-             ))}
+               );
+             })}
            </div>
 
+           {/* Upcoming Services */}
+           {upcomingServices.length > 0 && (
+             <>
+               <Text strong className="text-foreground" style={{ fontSize: 14 }}>
+                 ⏳ Services à venir aujourd'hui
+               </Text>
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                 {upcomingServices.map(s => {
+                   const nextSlot = s.planning?.find(p => {
+                     const currentDay = (dayjs().day() + 6) % 7;
+                     return p.jour === currentDay;
+                   });
+                   return (
+                     <Card key={s._id} className="controller-ticket-card h-full opacity-75">
+                       <div className="controller-ticket-top p-6 -mx-6 -mt-6 mb-4">
+                         <div className="flex items-center justify-center">
+                           <div className="bg-slate-100 p-4 rounded-full">
+                             <FaMoneyBill size={32} color="#94a3b8" />
+                           </div>
+                         </div>
+                       </div>
+                       <Space orientation="vertical" size="small" style={{ width: '100%' }}>
+                         <div className="flex justify-between items-start">
+                           <Title level={5} className="capitalize line-clamp-2 mb-0" style={{ flex: 1 }}>
+                             {s.nom}
+                           </Title>
+                           <Tag color="orange">À venir</Tag>
+                         </div>
+                         {nextSlot && (
+                           <Text type="secondary" style={{ fontSize: 12 }}>
+                             {DayLabels[nextSlot.jour]} · {nextSlot.heureDebut} – {nextSlot.heureFin}
+                           </Text>
+                         )}
+                       </Space>
+                     </Card>
+                   );
+                 })}
+               </div>
+             </>
+           )}
+
            {/* Empty State */}
-           {services?.length === 0 && !isLoadingF && (
+           {activeServices.length === 0 && !isLoadingF && (
               <Card className="controller-panel text-center">
                <Empty
                  image={<div className="bg-gray-100 p-6 rounded-full inline-block"><FaServicestack size={48} className="text-gray-400" /></div>}

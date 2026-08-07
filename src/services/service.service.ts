@@ -7,6 +7,10 @@ constructor(){
     super(Api,'service');
 }
 
+async active(): Promise<ServiceType[]> {
+    return this.api.get(`/${this.ressource}/active`).then(res => res.data);
+  }
+
 async byagent(agentId:string):Promise<ServiceType[]> {
     return this.api.get(`/${this.ressource}/by-agent-controle/${agentId}`).then(res => res.data);
   }

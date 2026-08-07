@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
+import { ConfigProvider } from 'antd'
 
 import * as TanStackQueryProvider from './integrations/tanstack-query/root-provider.tsx'
 
@@ -38,9 +39,30 @@ if (rootElement && !rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement)
   root.render(
     <StrictMode>
-      <TanStackQueryProvider.Provider {...TanStackQueryProviderContext}>
-        <RouterProvider router={router} />
-      </TanStackQueryProvider.Provider>
+      <ConfigProvider
+        theme={{
+          components: {
+            Modal: {
+              contentBg: 'var(--card)',
+              headerBg: 'var(--card)',
+              titleColor: 'var(--foreground)',
+              colorText: 'var(--foreground)',
+            },
+            Table: {
+              headerBg: 'var(--muted)',
+              headerColor: 'var(--foreground)',
+              rowHoverBg: 'var(--muted)',
+              borderColor: 'var(--border)',
+              headerSplitColor: 'var(--border)',
+              cellPaddingBlock: 14,
+            },
+          },
+        }}
+      >
+        <TanStackQueryProvider.Provider {...TanStackQueryProviderContext}>
+          <RouterProvider router={router} />
+        </TanStackQueryProvider.Provider>
+      </ConfigProvider>
     </StrictMode>,
   )
 }

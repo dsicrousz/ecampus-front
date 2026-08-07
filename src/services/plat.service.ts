@@ -16,13 +16,13 @@ export class PlatService extends Service {
   }
 
   /**
-   * Récupère les plats par type de repas
+   * Récupère les plats d'un restaurant filtrés par service
    * @param {string} restaurantId - ID du restaurant
-   * @param {string} typeRepas - Type de repas (petit_dejeuner, dejeuner, diner)
+   * @param {string} serviceId - ID du service
    * @returns {Promise} Liste des plats filtrés
    */
-  async byTypeRepas(restaurantId: string | number, typeRepas: string): Promise<any> {
-    return this.api.get(`/${this.ressource}/restaurant/${restaurantId}/type/${typeRepas}`).then((res: any) => res.data);
+  async byRestaurantAndService(restaurantId: string | number, serviceId: string | number): Promise<any> {
+    return this.api.get(`/${this.ressource}/restaurant/${restaurantId}?serviceId=${serviceId}`).then((res: any) => res.data);
   }
 
   async updateImage(platId: string | number, data: any): Promise<any> {

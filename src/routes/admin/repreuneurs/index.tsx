@@ -2,11 +2,10 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { requireRole } from '@/lib/route-protection';
 import { useQuery } from '@tanstack/react-query'
 import { useSession } from '@/auth/auth-client'
-import { ServiceService } from '@/services/service.service'
+import { RestaurantService } from '@/services/restaurant.service'
 import { 
   Card, 
   Table, 
-  Tag, 
   Space, 
   Typography,
   Button,
@@ -21,7 +20,7 @@ import {
   ArrowRightOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import type { Service } from '@/types/service'
+import type { Restaurant } from '@/types/restaurant'
 import { USER_ROLE } from '@/types/user.roles'
 
 const { Title, Text } = Typography
@@ -34,32 +33,24 @@ export const Route = createFileRoute('/admin/repreuneurs/')({
 function RouteComponent() {
   const navigate = useNavigate()
   const { data: sessionData } = useSession()
-  const serviceService = new ServiceService()
+  const restaurantService = new RestaurantService()
 
-  // Récupérer les services du repreneur
-  const { data: services, isLoading } = useQuery({
-    queryKey: ['services', sessionData?.user?.id],
-    queryFn: () => serviceService.byGerant(sessionData?.user?.id!),
+  // Récupérer les restaurants du repreneur
+  const { data: restaurants, isLoading } = useQuery({
+    queryKey: ['restaurants', sessionData?.user?.id],
+    queryFn: () => restaurantService.byRepreneur(sessionData?.user?.id!),
     enabled: !!sessionData?.user?.id
   })
 
-  const columns: ColumnsType<Service> = [
+  const columns: ColumnsType<Restaurant> = [
     {
-      title: 'Service',
+      title: 'Restaurant',
       key: 'nom',
       render: (_, record) => (
         <Space>
-          <ShopOutlined style={{ color: '#1890ff' }} />
+          <ShopOutlined className="text-sky-600" />
           <span>{record.nom}</span>
         </Space>
-      )
-    },
-    {
-      title: 'Type',
-      key: 'type',
-      dataIndex: 'typeService',
-      render: (type: string) => (
-        <Tag color="blue">{type}</Tag>
       )
     },
     {
@@ -89,18 +80,20 @@ function RouteComponent() {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
-        <Spin size="large" />
+      <div className="controller-page">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Spin size="large" />
+        </div>
       </div>
     )
   }
 
-  if (!services?.length) {
+  if (!restaurants?.length) {
     return (
       <div className="controller-page">
         <Card className="controller-panel">
-          <Empty 
-            description="Vous n'êtes gérant d'aucun service"
+          <Empty
+            description="Vous n'êtes repreneur d'aucun restaurant"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         </Card>
@@ -113,31 +106,31 @@ function RouteComponent() {
       <Spin spinning={isLoading}>
         <Space orientation="vertical" size="large" style={{ width: '100%' }}>
           {/* Hero Header */}
-          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+          <Card className="controller-hero controller-hero-soft border">
             <Row gutter={[24, 16]} align="middle" wrap>
               <Col flex="none">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                   <ShopOutlined style={{ fontSize: 28 }} />
                 </div>
               </Col>
               <Col flex="auto">
-                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Gestion
                 </Text>
-                <Title level={3} className="mb-1! mt-1! text-slate-900!">
-                  Mes Services
+                <Title level={3} className="mb-1! mt-1! text-foreground!">
+                  Mes Restaurants
                 </Title>
                 <Text type="secondary">
-                  Services dont vous êtes gérant
+                  Restaurants dont vous êtes gérant
                 </Text>
               </Col>
               <Col flex="none">
-                <div className="min-w-[220px] rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <div className="min-w-[220px] rounded-2xl border border-border bg-muted px-5 py-4">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Total
                   </p>
-                  <p className="text-3xl font-bold text-slate-900">
-                    {services?.length || 0}
+                  <p className="text-3xl font-bold text-foreground">
+                    {restaurants?.length || 0}
                   </p>
                 </div>
               </Col>
@@ -145,16 +138,16 @@ function RouteComponent() {
           </Card>
 
           {/* Table */}
-          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Services</span>}>
+          <Card className="controller-panel" title={<span className="text-foreground font-semibold">Liste des Restaurants</span>}>
             <Table
               className="controller-table"
               columns={columns}
-              dataSource={services}
+              dataSource={restaurants}
               rowKey="_id"
               pagination={{
                 defaultPageSize: 10,
                 showSizeChanger: true,
-                showTotal: (total) => `Total: ${total} service(s)`
+                showTotal: (total) => `Total: ${total} restaurant(s)`
               }}
             />
           </Card>

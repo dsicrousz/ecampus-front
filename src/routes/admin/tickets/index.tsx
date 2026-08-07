@@ -1,11 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { requireRole } from '@/lib/route-protection';
-import { Card, Table, Button, Input, Space, Tag, Popconfirm, message, Spin, Drawer, Form, InputNumber, Switch, Typography, Row, Col, Statistic } from 'antd';
+import { requireRole, canModify } from '@/lib/route-protection';
+import { useSession } from '@/auth/auth-client';
+import { Card, Table, Button, Input, Space, Tag, Popconfirm, message, Spin, Drawer, Form, InputNumber, Switch, Select, Typography, Row, Col, Statistic } from 'antd';
 import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TicketService } from '@/services/ticket.service';
-import type { Ticket, TicketFormValues } from '@/types/ticket';
+import { TicketType, type Ticket, type TicketFormValues } from '@/types/ticket';
 import type { ColumnsType } from 'antd/es/table';
 import { USER_ROLE } from '@/types/user.roles';
 
@@ -17,6 +18,8 @@ export const Route = createFileRoute('/admin/tickets/')({
 })
 
 function RouteComponent() {
+  const { data: session } = useSession();
+  const canEdit = canModify(session?.user?.role);
   const [opened, setOpened] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
   const [searchText, setSearchText] = useState('');
@@ -93,7 +96,8 @@ function RouteComponent() {
     form.resetFields();
     form.setFieldsValue({
       active: true,
-      prix: 0
+      prix: 0,
+      type: TicketType.RESTAURATION
     });
     setEditingTicket(null);
     setOpened(true);
@@ -142,6 +146,22 @@ function RouteComponent() {
       ),
     },
     {
+      title: 'Type',
+      dataIndex: 'type',
+      key: 'type',
+      align: 'center',
+      filters: [
+        { text: 'Restauration', value: 'restauration' },
+        { text: 'Autre', value: 'autre' }
+      ],
+      onFilter: (value: any, record: Ticket) => (record.type || 'restauration') === value,
+      render: (type: string) => (
+        <Tag color={type === 'autre' ? 'blue' : 'orange'}>
+          {type === 'autre' ? 'Autre' : 'Restauration'}
+        </Tag>
+      ),
+    },
+    {
       title: 'Statut',
       dataIndex: 'active',
       key: 'active',
@@ -166,15 +186,15 @@ function RouteComponent() {
       align: 'center',
       render: (_: any, record: Ticket) => (
         <Space>
-          <Button
+          {canEdit && <Button
             type="primary"
             icon={<EditOutlined />}
             onClick={() => handleUpdate(record)}
             size="small"
           >
             Modifier
-          </Button>
-          <Popconfirm
+          </Button>}
+          {canEdit && <Popconfirm
             title="Supprimer le ticket"
             description="Êtes-vous sûr de vouloir supprimer ce ticket ?"
             onConfirm={() => deleteTicket(record._id)}
@@ -189,7 +209,7 @@ function RouteComponent() {
             >
               Supprimer
             </Button>
-          </Popconfirm>
+          </Popconfirm>}
         </Space>
       ),
     },
@@ -203,18 +223,18 @@ function RouteComponent() {
       <Spin spinning={isLoadingTickets || loadingCreate || loadingUpdate}>
         <Space orientation="vertical" size="large" style={{ width: '100%' }}>
           {/* Hero Header */}
-          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+          <Card className="controller-hero controller-hero-soft border">
             <Row gutter={[24, 16]} align="middle" wrap>
               <Col flex="none">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                   <span style={{ fontSize: 28 }}>🎫</span>
                 </div>
               </Col>
               <Col flex="auto">
-                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Paiement
                 </Text>
-                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                <Title level={3} className="mb-1! mt-1! text-foreground!">
                   Tickets
                 </Title>
                 <Text type="secondary">
@@ -231,13 +251,13 @@ function RouteComponent() {
                     allowClear
                     style={{ width: 250 }}
                   />
-                  <Button
+                  {canEdit && <Button
                     type="primary"
                     icon={<PlusOutlined />}
                     onClick={handleOpenCreate}
                   >
                     Nouveau
-                  </Button>
+                  </Button>}
                 </Space>
               </Col>
             </Row>
@@ -248,7 +268,7 @@ function RouteComponent() {
             <Col xs={24} sm={8}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title={<span className="text-blue-700 font-medium">Total Tickets</span>}
+                  title={<span className="text-primary font-medium">Total Tickets</span>}
                   value={filteredTickets.length}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
                 />
@@ -275,7 +295,7 @@ function RouteComponent() {
           </Row>
 
           {/* Table */}
-          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Tickets</span>}>
+          <Card className="controller-panel" title={<span className="text-foreground font-semibold">Liste des Tickets</span>}>
             <Table
               className="controller-table"
               columns={columns}
@@ -340,6 +360,20 @@ function RouteComponent() {
               placeholder="0"
               min={0}
               formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="Type de ticket"
+            name="type"
+            rules={[{ required: true, message: 'Le type est requis' }]}
+          >
+            <Select
+              placeholder="Sélectionner un type"
+              options={[
+                { value: TicketType.RESTAURATION, label: 'Restauration' },
+                { value: TicketType.AUTRE, label: 'Autre' }
+              ]}
             />
           </Form.Item>
 

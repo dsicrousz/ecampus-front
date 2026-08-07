@@ -7,7 +7,7 @@
 body {
   @apply m-0;
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
+    'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu',
     'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -15,78 +15,79 @@ body {
 
 code {
   font-family:
-    source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+    'Fira Code', source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
+  /* Institutional navy palette — flat, no gradients */
+  --background: oklch(0.985 0.003 250);
+  --foreground: oklch(0.21 0.03 255);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
+  --card-foreground: oklch(0.21 0.03 255);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.21 0.03 255);
+  --primary: oklch(0.32 0.09 255);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.871 0.006 286.286);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --secondary: oklch(0.62 0.13 255);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.96 0.006 250);
+  --muted-foreground: oklch(0.52 0.02 255);
+  --accent: oklch(0.93 0.02 250);
+  --accent-foreground: oklch(0.32 0.09 255);
+  --destructive: oklch(0.55 0.22 27);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.9 0.01 250);
+  --input: oklch(0.9 0.01 250);
+  --ring: oklch(0.32 0.09 255);
+  --chart-1: oklch(0.32 0.09 255);
+  --chart-2: oklch(0.6 0.14 160);
+  --chart-3: oklch(0.7 0.15 70);
+  --chart-4: oklch(0.55 0.22 27);
+  --chart-5: oklch(0.5 0.13 290);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar: oklch(0.21 0.03 255);
+  --sidebar-foreground: oklch(0.96 0.006 250);
+  --sidebar-primary: oklch(0.62 0.13 255);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.871 0.006 286.286);
+  --sidebar-accent: oklch(0.27 0.04 255);
+  --sidebar-accent-foreground: oklch(0.96 0.006 250);
+  --sidebar-border: oklch(0.3 0.03 255);
+  --sidebar-ring: oklch(0.62 0.13 255);
 }
 
 .dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.141 0.005 285.823);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.141 0.005 285.823);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.396 0.141 25.723);
-  --destructive-foreground: oklch(0.637 0.237 25.331);
-  --border: oklch(0.274 0.006 286.033);
-  --input: oklch(0.274 0.006 286.033);
-  --ring: oklch(0.442 0.017 285.786);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --background: oklch(0.18 0.025 255);
+  --foreground: oklch(0.96 0.006 250);
+  --card: oklch(0.22 0.03 255);
+  --card-foreground: oklch(0.96 0.006 250);
+  --popover: oklch(0.22 0.03 255);
+  --popover-foreground: oklch(0.96 0.006 250);
+  --primary: oklch(0.62 0.13 255);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.3 0.04 255);
+  --secondary-foreground: oklch(0.96 0.006 250);
+  --muted: oklch(0.27 0.03 255);
+  --muted-foreground: oklch(0.7 0.02 255);
+  --accent: oklch(0.3 0.04 255);
+  --accent-foreground: oklch(0.96 0.006 250);
+  --destructive: oklch(0.6 0.2 25);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.3 0.03 255);
+  --input: oklch(0.3 0.03 255);
+  --ring: oklch(0.62 0.13 255);
+  --chart-1: oklch(0.62 0.13 255);
+  --chart-2: oklch(0.7 0.15 160);
+  --chart-3: oklch(0.75 0.16 70);
+  --chart-4: oklch(0.65 0.22 25);
+  --chart-5: oklch(0.6 0.15 290);
+  --sidebar: oklch(0.15 0.025 255);
+  --sidebar-foreground: oklch(0.96 0.006 250);
+  --sidebar-primary: oklch(0.62 0.13 255);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(0.274 0.006 286.033);
-  --sidebar-ring: oklch(0.442 0.017 285.786);
+  --sidebar-accent: oklch(0.27 0.04 255);
+  --sidebar-accent-foreground: oklch(0.96 0.006 250);
+  --sidebar-border: oklch(0.27 0.03 255);
+  --sidebar-ring: oklch(0.62 0.13 255);
 }
 
 @theme inline {
@@ -137,13 +138,14 @@ code {
   }
 }
 
+/* ============================================================
+   FINANCE PAGES — flat institutional navy, no gradients
+   ============================================================ */
+
 .finance-page {
   min-height: 100%;
   padding: 0.5rem 0 2rem;
-  background:
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.12), transparent 28%),
-    radial-gradient(circle at top right, rgba(249, 115, 22, 0.1), transparent 24%),
-    linear-gradient(180deg, #f8fafc 0%, #eef4ff 48%, #f7fafc 100%);
+  background: var(--background);
 }
 
 .finance-stack {
@@ -152,32 +154,26 @@ code {
 
 .finance-hero {
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 24px;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   position: relative;
 }
 
 .finance-hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.24), transparent 46%),
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.24), transparent 30%);
-  pointer-events: none;
+  content: none;
 }
 
 .finance-hero--violet {
-  background: linear-gradient(135deg, #312e81 0%, #6d28d9 52%, #a855f7 100%);
+  background: oklch(0.32 0.09 255);
 }
 
 .finance-hero--blue {
-  background: linear-gradient(135deg, #0f172a 0%, #0369a1 52%, #38bdf8 100%);
+  background: oklch(0.24 0.06 255);
 }
 
 .finance-hero--amber {
-  background: linear-gradient(135deg, #7c2d12 0%, #c2410c 48%, #fb923c 100%);
+  background: oklch(0.45 0.12 60);
 }
 
 .finance-hero-content {
@@ -191,26 +187,26 @@ code {
 }
 
 .finance-hero-copy.ant-typography {
-  opacity: 0.88;
+  opacity: 0.9;
   max-width: 44rem;
 }
 
 .finance-balance-card {
-  border-radius: 24px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .finance-balance-value.ant-typography {
   margin: 0 !important;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
 .finance-stat-card.ant-card {
-  border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 }
 
@@ -219,29 +215,33 @@ code {
 }
 
 .finance-stat-card--amber {
-  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
+  background: oklch(0.97 0.03 70);
+  border-color: oklch(0.88 0.06 70);
 }
 
 .finance-stat-card--green {
-  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
+  background: oklch(0.97 0.03 160);
+  border-color: oklch(0.88 0.06 160);
 }
 
 .finance-stat-card--red {
-  background: linear-gradient(180deg, #fff1f2 0%, #ffffff 100%);
+  background: oklch(0.97 0.03 25);
+  border-color: oklch(0.88 0.06 25);
 }
 
 .finance-stat-card--blue {
-  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  background: oklch(0.97 0.03 250);
+  border-color: oklch(0.88 0.06 250);
 }
 
 .finance-panel.ant-card {
-  border-radius: 24px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.07);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .finance-panel .ant-card-head {
-  border-bottom-color: rgba(148, 163, 184, 0.14);
+  border-bottom-color: var(--border);
 }
 
 .finance-panel .ant-card-body {
@@ -249,20 +249,20 @@ code {
 }
 
 .finance-mini-card.ant-card {
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  box-shadow: none;
 }
 
 .finance-table .ant-table-container {
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  border: 1px solid var(--border);
 }
 
 .finance-table .ant-table-thead > tr > th {
-  background: #f8fafc;
-  color: #334155;
+  background: var(--muted);
+  color: var(--foreground);
   font-weight: 700;
 }
 
@@ -272,13 +272,17 @@ code {
 }
 
 .finance-tabs .ant-tabs-tab-active {
-  background: rgba(15, 23, 42, 0.06);
+  background: oklch(0.93 0.02 250);
 }
+
+/* ============================================================
+   CONTROLLER PAGES — flat institutional navy, no gradients
+   ============================================================ */
 
 .controller-page {
   min-height: 100%;
   padding: 1.25rem 1.25rem 2rem;
-  background: #f8fafc;
+  background: var(--background);
 }
 
 .controller-stack {
@@ -287,16 +291,16 @@ code {
 
 .controller-hero.ant-card {
   position: relative;
-  border-radius: 30px;
-  border: 1px solid rgba(37, 99, 235, 0.22);
-  background: #0f172a;
-  box-shadow: 0 24px 54px rgba(15, 23, 42, 0.22);
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 }
 
 .controller-hero.controller-hero-soft.ant-card {
-  background: #ffffff;
-  border-color: rgba(15, 23, 42, 0.08);
+  background: var(--card);
+  border-color: var(--border);
 }
 
 .controller-hero .ant-card-body {
@@ -304,13 +308,13 @@ code {
 }
 
 .controller-hero-title.ant-typography {
-  color: #f8fafc !important;
-  line-height: 1.05 !important;
+  color: var(--foreground) !important;
+  line-height: 1.1 !important;
   margin-bottom: 0 !important;
 }
 
 .controller-hero-subtitle.ant-typography {
-  color: rgba(219, 234, 254, 0.9) !important;
+  color: var(--muted-foreground) !important;
   font-weight: 500 !important;
   margin: 0.35rem 0 0 !important;
 }
@@ -321,8 +325,8 @@ code {
   width: fit-content;
   margin-bottom: 0.5rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.14);
-  color: #bfdbfe !important;
+  background: oklch(0.93 0.02 250);
+  color: oklch(0.32 0.09 255) !important;
   padding: 0.25rem 0.75rem;
   font-size: 0.72rem;
   font-weight: 800;
@@ -333,44 +337,42 @@ code {
 .controller-hero-icon {
   display: grid;
   place-items: center;
-  min-width: 76px;
-  height: 76px;
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.14);
+  min-width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: oklch(0.32 0.09 255);
   color: #ffffff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.26);
-  backdrop-filter: blur(10px);
+  box-shadow: none;
 }
 
 .controller-hero-soft .controller-hero-title.ant-typography {
-  color: #0f172a !important;
+  color: var(--foreground) !important;
 }
 
 .controller-hero-copy.ant-typography {
-  color: rgba(248, 250, 252, 0.76) !important;
+  color: var(--muted-foreground) !important;
 }
 
 .controller-back-button.ant-btn {
   height: 44px;
   border-radius: 999px;
-  border-color: rgba(148, 163, 184, 0.34);
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+  border-color: var(--border);
+  background: var(--card);
+  box-shadow: none;
 }
 
 .controller-price-card {
   min-width: 230px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(15, 23, 42, 0.3);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--muted);
   padding: 1.25rem 1.5rem;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(12px);
+  box-shadow: none;
 }
 
 .controller-price-label {
   margin-bottom: 0.35rem;
-  color: rgba(219, 234, 254, 0.82);
+  color: var(--muted-foreground);
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -378,17 +380,17 @@ code {
 }
 
 .controller-price-value {
-  color: #ffffff;
-  font-size: 2.45rem;
-  font-weight: 900;
-  letter-spacing: -0.04em;
+  color: var(--foreground);
+  font-size: 2.25rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 
 .controller-price-currency {
-  color: #bfdbfe;
+  color: var(--muted-foreground);
   font-size: 1rem;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .controller-desktop-grid {
@@ -399,7 +401,7 @@ code {
 }
 
 .controller-hero-soft .controller-hero-copy.ant-typography {
-  color: #475569 !important;
+  color: var(--muted-foreground) !important;
 }
 
 .controller-info-grid {
@@ -409,18 +411,17 @@ code {
 }
 
 .controller-info-card {
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: #ffffff;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: none;
 }
 
 .controller-panel.ant-card {
-  border-radius: 28px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 20px 42px rgba(15, 23, 42, 0.08);
-  backdrop-filter: blur(16px);
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 }
 
@@ -429,56 +430,56 @@ code {
 }
 
 .controller-stat-card.ant-card {
-  border-radius: 22px;
-  border: 1px solid rgba(147, 197, 253, 0.28);
-  background: #ffffff;
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.07);
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .controller-section-kicker {
   width: fit-content;
   margin: 0 auto 0.65rem;
   border-radius: 999px;
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: oklch(0.93 0.02 250);
+  color: oklch(0.32 0.09 255);
   padding: 0.25rem 0.75rem;
   font-size: 0.72rem;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .controller-section-title.ant-typography {
-  color: #0f172a !important;
-  font-weight: 850 !important;
-  letter-spacing: -0.03em;
+  color: var(--foreground) !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.02em;
 }
 
 .controller-ticket-card.ant-card {
-  border-radius: 22px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 16px;
+  border: 1px solid var(--border);
   overflow: hidden;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .controller-ticket-top {
-  background: #0f172a;
+  background: oklch(0.21 0.03 255);
   padding: 1.5rem;
 }
 
 .controller-ticket-chip {
   border-radius: 999px;
-  background: #e2e8f0;
-  color: #0f172a;
+  background: var(--muted);
+  color: var(--foreground);
   padding: 0.35rem 0.75rem;
   font-size: 0.75rem;
   font-weight: 700;
 }
 
 .controller-ticket-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-2px);
   transition: transform 180ms ease, box-shadow 180ms ease;
-  box-shadow: 0 22px 40px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
 }
 
 .controller-scan-frame {
@@ -486,19 +487,19 @@ code {
   display: grid;
   place-items: center;
   width: min(100%, 520px);
-  border-radius: 32px;
-  border: 1px solid rgba(37, 99, 235, 0.18);
-  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--card);
   padding: 2.25rem;
-  box-shadow: 0 22px 54px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .controller-scan-frame::before {
   content: "";
   position: absolute;
   inset: 18px;
-  border: 1px dashed rgba(37, 99, 235, 0.28);
-  border-radius: 24px;
+  border: 1px dashed oklch(0.62 0.13 255);
+  border-radius: 14px;
   pointer-events: none;
 }
 
@@ -506,41 +507,61 @@ code {
   position: relative;
   z-index: 1;
   max-height: 300px;
-  border-radius: 24px;
-  filter: drop-shadow(0 18px 26px rgba(15, 23, 42, 0.14));
+  border-radius: 14px;
+  filter: none;
 }
 
 .controller-scan-status {
   margin-top: 1.5rem;
   border-radius: 999px;
-  background: #f8fafc;
+  background: var(--muted);
   padding: 0.6rem 1rem;
-  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.16);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 .controller-activity {
-  border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  background: #f8fafc;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--muted);
 }
 
 .controller-modal-section {
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--muted);
   padding: 1rem;
 }
 
 .controller-table .ant-table-container {
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.12);
+  border: 1px solid var(--border);
 }
 
 .controller-table .ant-table-thead > tr > th {
-  background: #f8fafc;
-  color: #334155;
+  background: var(--muted);
+  color: var(--foreground);
   font-weight: 700;
+}
+
+.ant-table {
+  color: var(--foreground) !important;
+  background: var(--card) !important;
+}
+
+.ant-table-tbody > tr > td {
+  background: var(--card) !important;
+  color: var(--foreground) !important;
+}
+
+.ant-table-thead > tr > th {
+  color: var(--foreground) !important;
+  background: var(--muted) !important;
+}
+
+.ant-table-tbody > tr:hover > td,
+.ant-table-tbody > tr.ant-table-row:hover > td {
+  background: var(--muted) !important;
 }
 
 @media (max-width: 900px) {

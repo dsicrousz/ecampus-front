@@ -21,6 +21,8 @@ import { env } from '@/env';
 import { cn } from '@/lib/utils';
 import type { AxiosError } from 'axios';
 import { AnimatedList } from '@/components/ui/animated-list';
+import { requireRole } from '@/lib/route-protection';
+import { USER_ROLE } from '@/types/user.roles';
 
 
 dayjs.extend(isBetween);
@@ -28,6 +30,7 @@ dayjs.extend(isBetween);
 export const Route = createFileRoute(
   '/admin/controleurs/$serviceId/ticket/$ticketId/mobile/',
 )({
+  beforeLoad: () => requireRole([USER_ROLE.CONTROLEUR, USER_ROLE.CHEF_DIV_RESTAURANT, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -58,7 +61,7 @@ function RouteComponent() {
     });
     
     const {data:service, isLoading: isLoadingService} = useQuery({ 
-        queryKey: queryKeys.serviceDetail(serviceId), 
+        queryKey: ['service', serviceId], 
         queryFn: () => serviceService.getOne(serviceId),
         enabled: !!serviceId
     });
@@ -92,6 +95,7 @@ function RouteComponent() {
                 message.error("Carte perdue Signalement",5);
                 playError.play();
             }
+            console.log("data", data);
             setStudentData(data);
             setModalOpened(true);
         },
@@ -107,6 +111,9 @@ function RouteComponent() {
         queryFn: () => operationService.hasConsumedToday(studentData?._id!, ticketId),
         enabled: !!studentData && !!ticketId
      });
+
+
+     console.log("hasConsumedToday", hasConsumedToday);
 
 
      useEffect(() => {
@@ -141,7 +148,7 @@ function RouteComponent() {
 
       const handleValidateOperation = () => {
         if(scannedCode && studentData && ticket && service) {
-            const data: any = {
+            const data:any = {
                 compte: studentData._id,
                 montant: ticket?.prix || 0,
                 ticket: ticketId,
@@ -156,7 +163,7 @@ function RouteComponent() {
   return (
     <figure
       className={cn(
-        "relative w-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-3 shadow-sm",
+        "relative w-full overflow-hidden rounded-2xl border border-border bg-card p-3 shadow-sm",
         "transition-all duration-300 ease-in-out hover:shadow-md"
       )}
     >
@@ -165,7 +172,7 @@ function RouteComponent() {
           <img
             src={`${env.VITE_APP_BACKURL_ETUDIANT}/${operation.compte?.etudiant?.avatar}`}
             alt={`${operation.compte?.etudiant?.prenom ?? ''} ${operation.compte?.etudiant?.nom ?? ''}`}
-            className="h-12 w-12 rounded-full border-2 border-slate-200 object-cover"
+            className="h-12 w-12 rounded-full border-2 border-border object-cover"
             onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
           />
           <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-white shadow ring-2 ring-white">
@@ -174,15 +181,15 @@ function RouteComponent() {
         </div>
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex items-center justify-between gap-2">
-            <span className="truncate text-sm font-semibold text-slate-900">
+            <span className="truncate text-sm font-semibold text-foreground">
               {operation.compte?.etudiant?.prenom} {operation.compte?.etudiant?.nom}
             </span>
             <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
               {operation.type}
             </span>
           </div>
-          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
-            <FaClock className="text-slate-400" />
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <FaClock className="text-muted-foreground/70" />
             <span>{dayjs(operation.createdAt).format('DD/MM/YYYY HH:mm')}</span>
           </div>
           <div className="mt-1 flex items-center gap-1.5">
@@ -204,29 +211,28 @@ function RouteComponent() {
   const canValidate = !!studentData?.is_actif && soldeSuffisant && !hasConsumedToday?.hasConsumed;
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen bg-background pb-28">
          <Spin
        spinning={isLoadingTicket || isLoadingService || isLoadingR || isPending || isLoadingHasConsumedToday}
        size="large"
-       className="backdrop-blur-sm"
      >
-    
+
       {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b border-border bg-card">
         <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-3">
           <button
             type="button"
-            onClick={() => navigate({ to: '/admin/controleurs/$serviceId', params: { serviceId } })}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 active:scale-95"
+            onClick={() => navigate({ to: '/admin/controleurs' })}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground active:scale-95"
             aria-label="Retour"
           >
             <FaArrowLeft />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            <p className="truncate text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Contrôle ticket
             </p>
-            <p className="truncate text-sm font-bold text-slate-900">
+            <p className="truncate text-sm font-bold text-foreground">
               {service?.nom || '—'}
             </p>
           </div>
@@ -235,7 +241,7 @@ function RouteComponent() {
               'shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ring-1',
               ticket
                 ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-                : 'bg-slate-100 text-slate-500 ring-slate-200',
+                : 'bg-muted text-muted-foreground ring-border',
             )}
           >
             {ticket ? 'Prêt' : '...'}
@@ -245,24 +251,24 @@ function RouteComponent() {
 
       <main className="mx-auto max-w-md space-y-4 px-4 pt-4">
         {/* Ticket card */}
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white">
+        <section className="overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+          <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
               <FaTicketAlt />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Ticket</p>
-              <p className="truncate text-base font-bold text-slate-900">{ticket?.nom || '—'}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Ticket</p>
+              <p className="truncate text-base font-bold text-foreground">{ticket?.nom || '—'}</p>
             </div>
           </div>
           <div className="flex items-center justify-between gap-3 px-4 py-4">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Prix du ticket
               </p>
-              <p className="mt-0.5 text-3xl font-black tracking-tight text-slate-900">
+              <p className="mt-0.5 text-3xl font-black tracking-tight text-foreground">
                 {ticketPrice.toLocaleString('fr-FR')}
-                <span className="ml-1 text-sm font-bold text-slate-500">FCFA</span>
+                <span className="ml-1 text-sm font-bold text-muted-foreground">FCFA</span>
               </p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 ring-1 ring-emerald-200">
@@ -277,9 +283,9 @@ function RouteComponent() {
           onClick={() => setScannerOpened(true)}
           disabled={!ticket || !service}
           className={cn(
-            'group relative flex w-full items-center justify-center gap-3 rounded-3xl px-4 py-5 text-base font-bold text-white shadow-lg transition active:scale-[0.98]',
+            'group relative flex w-full items-center justify-center gap-3 rounded-3xl px-4 py-5 text-base font-bold text-white shadow-sm transition active:scale-[0.98]',
             !ticket || !service
-              ? 'bg-slate-300 shadow-none'
+              ? 'bg-muted-foreground/30 shadow-none'
               : 'bg-emerald-600 hover:bg-emerald-700',
           )}
         >
@@ -296,34 +302,34 @@ function RouteComponent() {
 
         {/* Stats */}
         <section className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Opérations
             </p>
             <div className="mt-1 flex items-center gap-2">
-              <FaCheckCircle className="text-blue-500" />
-              <p className="text-2xl font-black text-slate-900">{operations?.length || 0}</p>
+              <FaCheckCircle className="text-primary" />
+              <p className="text-2xl font-black text-foreground">{operations?.length || 0}</p>
             </div>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+          <div className="rounded-2xl border border-border bg-card p-3 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Montant total
             </p>
             <div className="mt-1 flex items-center gap-2">
               <FaMoneyBillWave className="text-emerald-600" />
-              <p className="text-lg font-black text-slate-900">
+              <p className="text-lg font-black text-foreground">
                 {totalMontant.toLocaleString('fr-FR')}
-                <span className="ml-1 text-xs font-bold text-slate-500">FCFA</span>
+                <span className="ml-1 text-xs font-bold text-muted-foreground">FCFA</span>
               </p>
             </div>
           </div>
         </section>
 
         {/* Recent operations */}
-        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <section className="rounded-3xl border border-border bg-card shadow-sm">
           <div className="flex items-center justify-between px-4 py-3">
-            <h2 className="text-sm font-bold text-slate-900">Dernières opérations</h2>
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+            <h2 className="text-sm font-bold text-foreground">Dernières opérations</h2>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
               {operations?.length || 0}
             </span>
           </div>
@@ -338,7 +344,7 @@ function RouteComponent() {
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-white/85" />
               </>
             ) : (
-              <div className="flex h-full flex-col items-center justify-center text-slate-400">
+              <div className="flex h-full flex-col items-center justify-center text-muted-foreground/70">
                 <FaTicketAlt className="mb-3 text-5xl opacity-40" />
                 <p className="text-sm">Aucune opération pour le moment</p>
               </div>
@@ -347,16 +353,16 @@ function RouteComponent() {
         </section>
 
         {/* Historique des opérations - Liste détaillée */}
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <section className="rounded-3xl border border-border bg-card p-4 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-50 text-blue-600 ring-1 ring-blue-200">
               <FaWallet className="text-sm" />
             </div>
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Historique
               </p>
-              <p className="text-sm font-bold text-slate-900">Opérations effectuées</p>
+              <p className="text-sm font-bold text-foreground">Opérations effectuées</p>
             </div>
           </div>
 
@@ -366,17 +372,17 @@ function RouteComponent() {
               operations.slice(0, 10).map((operation: Operation) => (
                 <div
                   key={operation._id}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border bg-slate-50 p-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-bold text-slate-900">
+                    <p className="truncate text-xs font-bold text-foreground">
                       {operation.compte?.etudiant?.prenom} {operation.compte?.etudiant?.nom}
                     </p>
-                    <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
-                      <FaClock className="text-slate-400" />
+                    <p className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <FaClock className="text-muted-foreground/70" />
                       {dayjs(operation.createdAt).format('DD/MM HH:mm')}
                     </p>
-                    <p className="mt-0.5 text-xs font-semibold text-slate-700">
+                    <p className="mt-0.5 text-xs font-semibold text-foreground">
                       {operation.type}
                     </p>
                     <p className="mt-0.5 text-xs font-bold text-emerald-600">
@@ -392,7 +398,7 @@ function RouteComponent() {
                 </div>
               ))
             ) : (
-              <p className="text-center text-xs text-slate-500">Aucune opération</p>
+              <p className="text-center text-xs text-muted-foreground">Aucune opération</p>
             )}
           </div>
         </section>
@@ -415,11 +421,11 @@ function RouteComponent() {
         className="qr-scanner-modal"
      >
         <div className="space-y-3">
-          <p className="text-center text-sm text-slate-500">
+          <p className="text-center text-sm text-muted-foreground">
             Positionnez le QR code de l'étudiant devant la caméra
           </p>
 
-          <div className="relative aspect-square overflow-hidden rounded-2xl bg-black ring-1 ring-slate-200">
+          <div className="relative aspect-square overflow-hidden rounded-2xl bg-black ring-1 ring-border">
             <Scanner
               onScan={handleScan}
               onError={handleScanError}
@@ -431,7 +437,7 @@ function RouteComponent() {
           <button
             type="button"
             onClick={() => setScannerOpened(false)}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 active:scale-[0.98]"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground active:scale-[0.98]"
           >
             <FaTimes /> Annuler
           </button>
@@ -449,7 +455,7 @@ function RouteComponent() {
         title={
             <div className="flex items-center gap-2">
                 <FaCheckCircle className="text-emerald-600 text-lg" />
-                <span className="text-base font-semibold text-slate-800">Validation de l'opération</span>
+                <span className="text-base font-semibold text-foreground">Validation de l'opération</span>
             </div>
         }
         width="95%"
@@ -471,9 +477,9 @@ function RouteComponent() {
               )}
 
               {/* Carte étudiant */}
-              <section className="rounded-2xl border border-slate-200 bg-white p-3">
+              <section className="rounded-2xl border border-border bg-card p-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl ring-2 ring-slate-200">
+                  <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl ring-2 ring-border">
                     {studentData?.etudiant?.avatar ? (
                       <Image
                         src={`${env.VITE_APP_BACKURL_ETUDIANT}/${studentData.etudiant.avatar}`}
@@ -485,17 +491,17 @@ function RouteComponent() {
                         className="object-cover"
                       />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-slate-100 text-slate-400">
+                      <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground/70">
                         <FaUser />
                       </div>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-base font-bold text-slate-900">
+                    <p className="truncate text-base font-bold text-foreground">
                       {studentData?.etudiant?.prenom} {studentData?.etudiant?.nom}
                     </p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-                      <FaIdCard className="text-slate-400" />
+                    <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <FaIdCard className="text-muted-foreground/70" />
                       {studentData?.etudiant?.ncs || 'N/A'}
                     </p>
                     <span
@@ -512,10 +518,10 @@ function RouteComponent() {
                 </div>
 
                 {/* Solde */}
-                <div className="mt-3 flex items-center justify-between rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200">
+                <div className="mt-3 flex items-center justify-between rounded-2xl bg-muted p-3 ring-1 ring-border">
                   <div className="flex items-center gap-2">
-                    <FaWallet className="text-slate-500" />
-                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <FaWallet className="text-muted-foreground" />
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                       Solde
                     </p>
                   </div>
@@ -526,26 +532,26 @@ function RouteComponent() {
                     )}
                   >
                     {studentSolde.toLocaleString('fr-FR')}
-                    <span className="ml-1 text-xs font-bold text-slate-500">FCFA</span>
+                    <span className="ml-1 text-xs font-bold text-muted-foreground">FCFA</span>
                   </p>
                 </div>
               </section>
 
               {/* Détails opération */}
-              <section className="rounded-2xl border border-slate-200 bg-white">
-                <div className="border-b border-slate-100 px-3 py-2">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+              <section className="rounded-2xl border border-border bg-card">
+                <div className="border-b border-border px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                     Détails de l'opération
                   </p>
                 </div>
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-border">
                   <div className="flex items-center justify-between px-3 py-2.5">
-                    <span className="text-xs font-semibold text-slate-500">Service</span>
-                    <span className="text-sm font-bold text-slate-900">{service?.nom}</span>
+                    <span className="text-xs font-semibold text-muted-foreground">Service</span>
+                    <span className="text-sm font-bold text-foreground">{service?.nom}</span>
                   </div>
                   <div className="flex items-center justify-between px-3 py-2.5">
-                    <span className="text-xs font-semibold text-slate-500">Ticket</span>
-                    <span className="text-sm font-bold text-slate-900">{ticket?.nom}</span>
+                    <span className="text-xs font-semibold text-muted-foreground">Ticket</span>
+                    <span className="text-sm font-bold text-foreground">{ticket?.nom}</span>
                   </div>
                   <div className="flex items-center justify-between bg-emerald-50/40 px-3 py-3">
                     <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
@@ -568,7 +574,7 @@ function RouteComponent() {
                     setStudentData(null);
                     setScannedCode(null);
                   }}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 active:scale-[0.98]"
+                  className="rounded-2xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground active:scale-[0.98]"
                 >
                   Annuler
                 </button>
@@ -580,7 +586,7 @@ function RouteComponent() {
                     'rounded-2xl px-4 py-3 text-sm font-bold text-white shadow-md transition active:scale-[0.98]',
                     canValidate
                       ? 'bg-emerald-600 hover:bg-emerald-700'
-                      : 'cursor-not-allowed bg-slate-300 shadow-none',
+                      : 'cursor-not-allowed bg-muted-foreground/30 shadow-none',
                   )}
                 >
                   ✓ Valider

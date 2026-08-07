@@ -1,29 +1,27 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { useQuery,useQueryClient } from '@tanstack/react-query';
-import { Spin, Card, Row, Col, Typography, Descriptions, Space, Statistic, Tag, Switch, Table } from 'antd';
-import { UserOutlined, CheckCircleOutlined, CloseCircleOutlined, FolderOutlined, ShoppingCartOutlined, ShopOutlined } from '@ant-design/icons';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Spin, Card, Row, Col, Typography, Descriptions, Space, Statistic, Tag, Switch, Table, Button, message } from 'antd';
+import { CheckCircleOutlined, CloseCircleOutlined, FolderOutlined, ArrowLeftOutlined, ShoppingCartOutlined, ShopOutlined } from '@ant-design/icons';
 import { CompteService } from '@/services/compte.service';
 import { OperationService } from '@/services/operation.service';
 import dayjs from 'dayjs';
 import { QUERY_KEYS } from '@/constants';
-const { Title, Text } = Typography;
+import { requireRole } from '@/lib/route-protection';
+import { USER_ROLE } from '@/types/user.roles';
 
-// Fonction utilitaire pour formater les montants
+const { Text } = Typography;
+
 const formatMontant = (montant: number): string => {
-  return new Intl.NumberFormat('fr-FR', { 
-    style: 'currency', 
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
     currency: 'XOF',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(montant);
 };
 
-// Fonction utilitaire pour formater les dates
-const format = (date: Date, formatStr: string): string => {
-  return dayjs(date).format(formatStr.replace(/d/g, 'D').replace(/y/g, 'Y').replace(/H/g, 'H').replace(/m/g, 'm'));
-};
-
 export const Route = createFileRoute('/admin/comptes/$compteId')({
+  beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
@@ -45,7 +43,6 @@ function RouteComponent() {
     queryFn: () => operationService.byCompte(compteId),
     enabled: !!compteId
   });
-
   // Calculate balance
   const balance = accountData?.solde || 0;
 
@@ -54,37 +51,43 @@ function RouteComponent() {
   const utilisations = operations?.filter((op: any) => op.type === 'UTILISATION') || [];
   const transferts = operations?.filter((op: any) => op.type === 'TRANSFERT') || [];
 
-  // Account activation handler
+  const navigate = useNavigate();
+
   const handleToggleAccount = async (checked: boolean) => {
     try {
       await compteService.toggleState(compteId, { is_actif: checked });
-     queryClient.invalidateQueries({ queryKey: qkAccount });
+      queryClient.invalidateQueries({ queryKey: qkAccount });
+      message.success(checked ? 'Compte activé' : 'Compte désactivé');
     } catch (error) {
       console.error('Erreur lors de la modification du statut:', error);
+      message.error('Erreur lors de la modification du statut');
     }
   };
 
-
-   // Account activation handler
   const handleLostCard = async (checked: boolean) => {
     try {
       await compteService.update(compteId, { est_perdu: checked });
-     queryClient.invalidateQueries({ queryKey: qkAccount });
+      queryClient.invalidateQueries({ queryKey: qkAccount });
+      message.success(checked ? 'Carte marquée comme perdue' : 'Carte retrouvée');
     } catch (error) {
       console.error('Erreur lors de la modification du statut:', error);
+      message.error('Erreur lors de la modification du statut');
     }
   };
 
   return (
-    <div>
+    <div className="controller-page">
       <Spin spinning={isLoadingAccount} size="large">
-        <Space orientation="vertical" size="large" style={{ width: '100%' }}>
-          {/* Account Details Card */}
-          <Card>
-            <Title level={3} style={{ marginBottom: 16 }}>
-              <UserOutlined /> Détails du Compte
-            </Title>
+        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate({ to: '/admin/comptes', search: { page: 1 } })}
+          >
+            Retour à la liste
+          </Button>
 
+          {/* Account Details Card */}
+          <Card className="controller-panel" title={<span className="text-foreground font-semibold">Détails du Compte</span>}>
             {accountData && (
               <Row gutter={[16, 16]}>
                 <Col xs={24} lg={12}>
@@ -96,18 +99,18 @@ function RouteComponent() {
                       <Text code>{accountData.etudiant?.ncs}</Text>
                     </Descriptions.Item>
                     <Descriptions.Item label="Date de création">
-                      {accountData.createdAt ? format(new Date(accountData.createdAt), 'dd/MM/yyyy HH:mm') : 'N/A'}
+                      {accountData.createdAt ? dayjs(accountData.createdAt).format('DD/MM/YYYY HH:mm') : 'N/A'}
                     </Descriptions.Item>
                   </Descriptions>
                 </Col>
 
                 <Col xs={24} lg={12}>
-                  <Space  orientation="vertical" size="large" style={{ width: '100%' }}>
+                  <Space direction="vertical" size="large" style={{ width: '100%' }}>
                     <Statistic
-                      title="Solde actuel"
+                      title={<span className="text-primary font-medium">Solde actuel</span>}
                       value={balance}
                       precision={0}
-                      valueStyle={{ color: '#1890ff' }}
+                      valueStyle={{ color: '#1677ff', fontSize: '1.75rem', fontWeight: 800 }}
                       prefix={<FolderOutlined />}
                       suffix="FCFA"
                     />
@@ -152,20 +155,19 @@ function RouteComponent() {
 
           {/* Recharges Card */}
           {recharges && recharges.length > 0 && (
-            <Card>
-              <Title level={4} style={{ marginBottom: 16 }}>
-                <ShoppingCartOutlined /> Historique des Recharges ({recharges.length})
-              </Title>
+            <Card className="controller-panel" title={<span className="text-foreground font-semibold"><ShoppingCartOutlined /> Historique des Recharges ({recharges.length})</span>}>
               <Table
-                                    columns={[
-                                        {
-                                            title: 'Date',
-                                            dataIndex: 'createdAt',
-                                            key: 'createdAt',
-                                            align: 'center',
-                                            render: (createdAt) => format(new Date(createdAt), 'dd/MM/yyyy HH:mm'),
-                                            sorter: (a: any, b: any) => dayjs(a.createdAt).isBefore(dayjs(b.createdAt)) ? -1 : 1,
-                                        },
+                className="controller-table"
+                columns={[
+                  {
+                    title: 'Date',
+                    dataIndex: 'createdAt',
+                    key: 'createdAt',
+                    align: 'center' as const,
+                    render: (createdAt: string) => dayjs(createdAt).format('DD/MM/YYYY HH:mm'),
+                    sorter: (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+                    defaultSortOrder: 'descend' as const,
+                  },
                   {
                     title: 'Montant',
                     dataIndex: 'montant',
@@ -183,7 +185,11 @@ function RouteComponent() {
                     dataIndex: 'agentControle',
                     key: 'agentControle',
                     align: 'center' as const,
-                    render: (agent: any) => agent ? `${agent.prenom} ${agent.nom}` : 'N/A',
+                    render: (agent: any) => {
+                      if (!agent) return 'N/A';
+                      if (typeof agent === 'string') return 'N/A';
+                      return agent.name || `${agent.prenom || ''} ${agent.nom || ''}`.trim() || 'N/A';
+                    },
                   },
                   {
                     title: 'Note',
@@ -207,36 +213,33 @@ function RouteComponent() {
 
           {/* Utilisations Card */}
           {utilisations && utilisations.length > 0 && (
-            <Card>
-              <Title level={4} style={{ marginBottom: 16 }}>
-                <ShopOutlined /> Historique des Utilisations ({utilisations.length})
-              </Title>
+            <Card className="controller-panel" title={<span className="text-foreground font-semibold"><ShopOutlined /> Historique des Utilisations ({utilisations.length})</span>}>
               <Table
+                className="controller-table"
                 columns={[
                   {
                     title: 'Date',
                     dataIndex: 'createdAt',
                     key: 'createdAt',
                     align: 'center' as const,
-                    render: (createdAt: string) => format(new Date(createdAt), 'dd/MM/yyyy HH:mm'),
+                    render: (createdAt: string) => dayjs(createdAt).format('DD/MM/YYYY HH:mm'),
                     sorter: (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+                    defaultSortOrder: 'descend' as const,
                   },
                   {
                     title: 'Ticket',
-                    dataIndex: ['ticket', 'nom'],
                     key: 'ticket',
                     align: 'center' as const,
-                    render: (nom: string) => (
-                      <Tag color="orange">{nom || 'N/A'}</Tag>
+                    render: (_: any, record: any) => (
+                      <Tag color="orange">{record.ticketSnapshot?.nom || 'N/A'}</Tag>
                     ),
                   },
                   {
                     title: 'Service',
-                    dataIndex: ['service', 'nom'],
                     key: 'service',
                     align: 'center' as const,
-                    render: (nom: string) => (
-                      <Tag color="green">{nom || 'N/A'}</Tag>
+                    render: (_: any, record: any) => (
+                      <Tag color="green">{record.serviceSnapshot?.nom || 'N/A'}</Tag>
                     ),
                   },
                   {
@@ -256,7 +259,11 @@ function RouteComponent() {
                     dataIndex: 'agentControle',
                     key: 'agentControle',
                     align: 'center' as const,
-                    render: (agent: any) => agent ? `${agent.prenom} ${agent.nom}` : 'N/A',
+                    render: (agent: any) => {
+                      if (!agent) return 'N/A';
+                      if (typeof agent === 'string') return 'N/A';
+                      return agent.name || `${agent.prenom || ''} ${agent.nom || ''}`.trim() || 'N/A';
+                    },
                   },
                 ]}
                 dataSource={utilisations}
@@ -273,19 +280,18 @@ function RouteComponent() {
 
           {/* Transferts Card */}
           {transferts && transferts.length > 0 && (
-            <Card>
-              <Title level={4} style={{ marginBottom: 16 }}>
-                <ShopOutlined /> Historique des Transferts ({transferts.length})
-              </Title>
+            <Card className="controller-panel" title={<span className="text-foreground font-semibold"><ShopOutlined /> Historique des Transferts ({transferts.length})</span>}>
               <Table
+                className="controller-table"
                 columns={[
                   {
                     title: 'Date',
                     dataIndex: 'createdAt',
                     key: 'createdAt',
                     align: 'center' as const,
-                    render: (createdAt: string) => format(new Date(createdAt), 'dd/MM/yyyy HH:mm'),
+                    render: (createdAt: string) => dayjs(createdAt).format('DD/MM/YYYY HH:mm'),
                     sorter: (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+                    defaultSortOrder: 'descend' as const,
                   },
                   {
                     title: 'Montant',
@@ -293,7 +299,7 @@ function RouteComponent() {
                     key: 'montant',
                     align: 'center' as const,
                     render: (montant: number) => (
-                      <span style={{ fontWeight: 'bold', color: '#1890ff' }}>
+                      <span style={{ fontWeight: 'bold', color: '#1677ff' }}>
                         {formatMontant(montant)}
                       </span>
                     ),

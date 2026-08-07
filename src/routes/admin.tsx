@@ -10,7 +10,7 @@ import { authClient } from '@/auth/auth-client'
 
 export const Route:any = createFileRoute('/admin')({
   beforeLoad: async () => {
-   const session = await  authClient.getSession()
+   const session = await authClient.getSession()
     if (!session.data?.user) {
       throw redirect({to: '/'})
     }

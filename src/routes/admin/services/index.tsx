@@ -1,15 +1,16 @@
 import { createFileRoute, useNavigate} from '@tanstack/react-router'
-import { requireRole } from '@/lib/route-protection';
+import { requireRole, canModify } from '@/lib/route-protection';
+import { useSession } from '@/auth/auth-client';
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { 
-  Card, 
-  Table, 
-  Button, 
-  Drawer, 
-  Form, 
-  Input, 
-  Select, 
-  Space, 
+import {
+  Card,
+  Table,
+  Button,
+  Drawer,
+  Form,
+  Input,
+  Select,
+  Space,
   Spin,
   Typography,
   Row,
@@ -18,43 +19,39 @@ import {
   Switch,
   Tag,
   Popconfirm,
-  InputNumber,
-  Statistic
+  Statistic,
+  TimePicker,
 } from 'antd';
-import { 
-  PlusOutlined, 
-  EditOutlined, 
+import {
+  PlusOutlined,
+  EditOutlined,
   DeleteOutlined,
   SearchOutlined,
   ShopOutlined,
-  EnvironmentOutlined,
-  TeamOutlined,
-  EyeOutlined
+  EyeOutlined,
+  ClockCircleOutlined,
+  MinusCircleOutlined,
 } from '@ant-design/icons';
 import { useMemo, useState, useEffect } from "react";
-import { TicketService } from '@/services/ticket.service';
 import { ServiceService } from '@/services/service.service';
+import { UserService } from '@/services/user.service';
 import type { ColumnsType } from 'antd/es/table';
-import { TypeService, type Service } from '@/types/service';
+import { TypeService, type Service, type PlanningControle } from '@/types/service';
 import { USER_ROLE } from '@/types/user.roles';
 import { QUERY_KEYS } from '@/constants';
-import { UserService } from '@/services/user.service';
-import type { User } from '@/types/user';
+import { TicketService } from '@/services/ticket.service';
+import type { Ticket } from '@/types/ticket';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
-const { TextArea } = Input;
 
 interface ServiceFormValues {
   _id?: string;
   nom: string;
-  typeService: TypeService;
-  gerant: string;
-  agentsControle?: string[];
-  ticketsacceptes?: string[];
-  localisation?: string;
-  nombre_de_places?: number;
-  description?: string;
+  type: TypeService;
+  ticket: string;
   active: boolean;
+  planning?: PlanningControle[];
 }
 
 // Constants
@@ -85,17 +82,31 @@ const TypeServiceLabels: Record<TypeService, string> = {
   autre: 'Autre'
 };
 
+const DayOptions = [
+  { value: 0, label: 'Lundi' },
+  { value: 1, label: 'Mardi' },
+  { value: 2, label: 'Mercredi' },
+  { value: 3, label: 'Jeudi' },
+  { value: 4, label: 'Vendredi' },
+  { value: 5, label: 'Samedi' },
+  { value: 6, label: 'Dimanche' },
+];
+
 export const Route = createFileRoute('/admin/services/')({
   beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
 })
 
 function RouteComponent() {
+  const { data: session } = useSession();
+  const canEdit = canModify(session?.user?.role);
   const [opened, setOpened] = useState(false);
   const [openedU, setOpenedU] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [debouncedSearchText, setDebouncedSearchText] = useState('');
   const [typeFilter, setTypeFilter] = useState<TypeService | null>(null);
+  const ticketService = new TicketService();
+  const userService = new UserService();
   const navigate = useNavigate();
   // Debounce search text
   useEffect(() => {
@@ -110,8 +121,6 @@ function RouteComponent() {
   
   const qc = useQueryClient();
   const serviceService = new ServiceService();
-  const ticketService = new TicketService();
-  const userService = new UserService();
 
 
   const { data: services, isLoading: isLoadingServices } = useQuery({ 
@@ -119,24 +128,23 @@ function RouteComponent() {
     queryFn: () => serviceService.getAll() 
   });
 
-  // Fetch users for gerant and agents selection
-  const { data: controleurs, isLoading: isLoadingControleurs } = useQuery({ 
-    queryKey: [QUERY_KEYS.USERS,USER_ROLE.CONTROLEUR], 
-    queryFn: () =>  userService.byRole(USER_ROLE.CONTROLEUR)
+  // Fetch tickets for service selection
+  const { data: tickets, isLoading: isLoadingTickets } = useQuery<Ticket[]>({
+    queryKey: [QUERY_KEYS.TICKETS],
+    queryFn: () => ticketService.getAll()
   });
 
-   // Fetch users for gerant and agents selection
-  const { data: gerants, isLoading: isLoadingGerants } = useQuery({ 
-    queryKey: [QUERY_KEYS.USERS,USER_ROLE.REPREUNEUR], 
-    queryFn: () =>  userService.byRole(USER_ROLE.REPREUNEUR)
+  // Fetch controleurs for planning agent selection
+  const { data: controleurs, isLoading: isLoadingControleurs } = useQuery({
+    queryKey: ['users', USER_ROLE.CONTROLEUR],
+    queryFn: () => userService.byRole(USER_ROLE.CONTROLEUR),
   });
 
+  const controleurOptions = (controleurs || []).map((u: any) => ({
+    value: u._id,
+    label: `${u.name} (${u.email})`,
+  }));
 
-  // Fetch tickets for selection
-  const { data: tickets, isLoading: isLoadingTickets } = useQuery({ 
-    queryKey: [QUERY_KEYS.TICKETS], 
-    queryFn: () => ticketService.getAll() 
-  });
 
   // Create mutation
   const { mutate: createService, isPending: loadingCreate } = useMutation({
@@ -181,42 +189,47 @@ function RouteComponent() {
     updateService({ id: _id, data: { active: checked } });
   };
 
-  const onCreate = (values: ServiceFormValues) => {
-    createService(values);
+  const transformPlanning = (planning: any[]): PlanningControle[] => {
+    return (planning || []).map((entry) => ({
+      jour: entry.jour,
+      heureDebut: entry.heureDebut ? dayjs(entry.heureDebut).format('HH:mm') : '',
+      heureFin: entry.heureFin ? dayjs(entry.heureFin).format('HH:mm') : '',
+      agents: entry.agents || [],
+    }));
   };
 
-  const onUpdate = (values: Service) => {
-    const { _id, createdAt, updatedAt, __v, ...rest } = values as any;
-    // Extract IDs if gerant, agentsControle or ticketsacceptes are objects
+  const onCreate = (values: any) => {
+    const data: ServiceFormValues = {
+      nom: values.nom,
+      type: values.type,
+      ticket: values.ticket,
+      active: values.active,
+      planning: transformPlanning(values.planning),
+    };
+    createService(data);
+  };
+
+  const onUpdate = (values: any) => {
+    const { _id, createdAt, updatedAt, ...rest } = values as any;
     const data: Partial<ServiceFormValues> = {
       nom: rest.nom,
-      typeService: rest.typeService,
-      gerant: typeof rest.gerant === 'object' && rest.gerant?._id ? rest.gerant._id : (rest.gerant as any),
-      agentsControle: rest.agentsControle?.map((agent: any) => 
-        typeof agent === 'object' && agent._id ? agent._id : agent
-      ) || [],
-      ticketsacceptes: rest.ticketsacceptes?.map((ticket: any) => 
-        typeof ticket === 'object' && ticket._id ? ticket._id : ticket
-      ) || [],
-      localisation: rest.localisation,
-      nombre_de_places: rest.nombre_de_places,
-      description: rest.description,
-      active: rest.active
+      type: rest.type,
+      ticket: typeof rest.ticket === 'object' && rest.ticket?._id ? rest.ticket._id : (rest.ticket as any),
+      active: rest.active,
+      planning: transformPlanning(rest.planning),
     };
     updateService({ id: _id, data });
   };
 
   const handleUpdate = (record: Service) => {
-    // Extract IDs for form
     const formData = {
       ...record,
-      gerant: typeof record.gerant === 'object' && record.gerant?._id ? record.gerant._id : record.gerant,
-      agentsControle: record.agentsControle?.map((agent: any) => 
-        typeof agent === 'object' && agent._id ? agent._id : agent
-      ) || [],
-      ticketsacceptes: record.ticketsacceptes?.map((ticket: any) => 
-        typeof ticket === 'object' && ticket._id ? ticket._id : ticket
-      ) || []
+      ticket: typeof record.ticket === 'object' && (record.ticket as any)?._id ? (record.ticket as any)._id : record.ticket,
+      planning: (record.planning || []).map((entry: PlanningControle) => ({
+        ...entry,
+        heureDebut: entry.heureDebut ? dayjs(entry.heureDebut, 'HH:mm') : undefined,
+        heureFin: entry.heureFin ? dayjs(entry.heureFin, 'HH:mm') : undefined,
+      })),
     };
     formU.setFieldsValue(formData);
     setOpenedU(true);
@@ -229,9 +242,7 @@ function RouteComponent() {
   const handleOpenCreate = () => {
     form.resetFields();
     form.setFieldsValue({
-      active: true,
-      agentsControle: [],
-      ticketsacceptes: []
+      active: true
     });
     setOpened(true);
   };
@@ -239,13 +250,6 @@ function RouteComponent() {
 
 
   // Prepare ticket options
-  const ticketOptions = useMemo(() => {
-    if (!tickets) return [];
-    return tickets.map(ticket => ({
-      value: ticket._id,
-      label: `${ticket.nom} - ${ticket.prix} FCFA`
-    }));
-  }, [tickets]);
 
   const columns: ColumnsType<Service> = [
     {
@@ -257,63 +261,16 @@ function RouteComponent() {
     },
     {
       title: 'Type',
-      dataIndex: 'typeService',
-      key: 'typeService',
+      dataIndex: 'type',
+      key: 'type',
       align: 'center' as const,
       filters: TypeServiceOptions.map(opt => ({ text: opt.label, value: opt.value })),
-      onFilter: (value, record) => record.typeService === value,
+      onFilter: (value, record) => record.type === value,
       render: (type: TypeService) => (
         <Tag color={TypeServiceColors[type]} icon={<ShopOutlined />}>
           {TypeServiceLabels[type]}
         </Tag>
       ),
-    },
-    {
-      title: 'Gérant',
-      dataIndex: 'gerant',
-      key: 'gerant',
-      render: (gerant) => gerant ? gerants?.find((user: User) => user._id === gerant)?.name : '-',
-    },
-    {
-      title: 'Agents de Contrôle',
-      dataIndex: 'agentsControle',
-      key: 'agentsControle',
-      align: 'center' as const,
-      render: (agents: any[]) => (
-        <Tag color="blue" icon={<TeamOutlined />}>
-          {agents?.length || 0} agent(s)
-        </Tag>
-      ),
-    },
-    {
-      title: 'Tickets Acceptés',
-      dataIndex: 'ticketsacceptes',
-      key: 'ticketsacceptes',
-      align: 'center' as const,
-      render: (tickets: any[]) => (
-        <Tag color="green">
-          {tickets?.length || 0} ticket(s)
-        </Tag>
-      ),
-    },
-    {
-      title: 'Localisation',
-      dataIndex: 'localisation',
-      key: 'localisation',
-      render: (text: string) => text ? (
-        <Space>
-          <EnvironmentOutlined style={{ color: '#1890ff' }} />
-          <Text>{text}</Text>
-        </Space>
-      ) : '-',
-    },
-    {
-      title: 'Places',
-      dataIndex: 'nombre_de_places',
-      key: 'nombre_de_places',
-      align: 'center' as const,
-      sorter: (a: Service, b: Service) => (a.nombre_de_places || 0) - (b.nombre_de_places || 0),
-      render: (nb: number) => nb || '-',
     },
     {
       title: 'Statut',
@@ -346,14 +303,14 @@ function RouteComponent() {
             style={{ color: '#1890ff' }}
             title="Voir les détails"
           />
-          <Button
+          {canEdit && <Button
             type="text"
             icon={<EditOutlined />}
             onClick={() => handleUpdate(record)}
             style={{ color: '#52c41a' }}
             title="Modifier"
-          />
-          <Popconfirm
+          />}
+          {canEdit && <Popconfirm
             title="Supprimer ce service?"
             description="Cette action est irréversible."
             onConfirm={() => handleDelete(record._id)}
@@ -367,7 +324,7 @@ function RouteComponent() {
               danger
               title="Supprimer"
             />
-          </Popconfirm>
+          </Popconfirm>}
         </Space>
       ),
     },
@@ -381,15 +338,13 @@ function RouteComponent() {
     if (debouncedSearchText) {
       const searchLower = debouncedSearchText.toLowerCase();
       filtered = filtered.filter(service => 
-        service.nom?.toLowerCase().includes(searchLower) ||
-        service.localisation?.toLowerCase().includes(searchLower) ||
-        service.description?.toLowerCase().includes(searchLower)
+        service.nom?.toLowerCase().includes(searchLower)
       );
     }
     
     // Filter by type
     if (typeFilter) {
-      filtered = filtered.filter(service => service.typeService === typeFilter);
+      filtered = filtered.filter(service => service.type === typeFilter);
     }
     
     return filtered;
@@ -403,18 +358,18 @@ function RouteComponent() {
       <Spin spinning={isLoadingServices}>
         <Space orientation="vertical" size="large" style={{ width: '100%' }}>
           {/* Hero Header */}
-          <Card className="controller-hero controller-hero-soft border-0 shadow-xl">
+          <Card className="controller-hero controller-hero-soft border">
             <Row gutter={[24, 16]} align="middle" wrap>
               <Col flex="none">
-                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-white">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
                   <ShopOutlined style={{ fontSize: 28 }} />
                 </div>
               </Col>
               <Col flex="auto">
-                <Text className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                <Text className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Gestion
                 </Text>
-                <Title level={3} className="mb-1! mt-1! text-slate-900!">
+                <Title level={3} className="mb-1! mt-1! text-foreground!">
                   Services
                 </Title>
                 <Text type="secondary">
@@ -439,13 +394,13 @@ function RouteComponent() {
                     onChange={setTypeFilter}
                     options={TypeServiceOptions}
                   />
-                  <Button 
+                  {canEdit && <Button 
                     type="primary" 
                     icon={<PlusOutlined />} 
                     onClick={handleOpenCreate}
                   >
                     Nouveau
-                  </Button>
+                  </Button>}
                 </Space>
               </Col>
             </Row>
@@ -456,7 +411,7 @@ function RouteComponent() {
             <Col xs={24} sm={8}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title={<span className="text-blue-700 font-medium">Total Services</span>}
+                  title={<span className="text-primary font-medium">Total Services</span>}
                   value={filteredServices.length}
                   prefix={<ShopOutlined />}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
@@ -484,7 +439,7 @@ function RouteComponent() {
           </Row>
 
           {/* Table */}
-          <Card className="controller-panel" title={<span className="text-slate-900 font-semibold">Liste des Services</span>}>
+          <Card className="controller-panel" title={<span className="text-foreground font-semibold">Liste des Services</span>}>
             <Table
               className="controller-table"
               columns={columns}
@@ -526,14 +481,13 @@ function RouteComponent() {
           </Space>
         }
       >
-        <Spin spinning={loadingCreate || isLoadingControleurs || isLoadingGerants || isLoadingServices}>
+        <Spin spinning={loadingCreate || isLoadingTickets}>
           <Form
             form={form}
             layout="vertical"
             onFinish={onCreate}
             initialValues={{
-              active: true,
-              agentsControle: []
+              active: true
             }}
           >
             <Form.Item
@@ -549,7 +503,7 @@ function RouteComponent() {
             </Form.Item>
 
             <Form.Item
-              name="typeService"
+              name="type"
               label="Type de Service"
               rules={[{ required: true, message: 'Le type est requis' }]}
             >
@@ -561,87 +515,107 @@ function RouteComponent() {
             </Form.Item>
 
             <Form.Item
-              name="gerant"
-              label="Gérant"
-              rules={[{ required: true, message: 'Le gérant est requis' }]}
+              name="ticket"
+              label="Ticket"
+              rules={[{ required: true, message: 'Le ticket est requis' }]}
             >
               <Select
                 size="large"
                 showSearch
-                placeholder="Sélectionner un gérant"
-                options={gerants?.map(user => ({
-                  value: user._id,
-                  label: `${user.email} - ${user.name}`
+                placeholder="Sélectionner un ticket"
+                options={tickets?.map(t => ({
+                  value: t._id,
+                  label: `${t.nom} (${t.prix} FCFA)`
                 }))}
               />
             </Form.Item>
 
-            <Form.Item
-              name="agentsControle"
-              label="Agents de Contrôle"
-            >
-              <Select
-                mode="multiple"
-                size="large"
-                showSearch
-                placeholder="Sélectionner des agents"
-                options={controleurs?.map(user => ({
-                  value: user._id,
-                  label: `${user.email} - ${user.name}`
-                }))}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="ticketsacceptes"
-              label="Tickets Acceptés"
-              tooltip="Sélectionnez les tickets qui peuvent être utilisés dans ce service"
-            >
-              <Select
-                mode="multiple"
-                size="large"
-                showSearch
-                placeholder="Sélectionner des tickets"
-                options={ticketOptions}
-                loading={isLoadingTickets}
-                filterOption={(input, option) =>
-                  option?.label?.toLowerCase().includes(input.toLowerCase()) || false
-                }
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="localisation"
-              label="Localisation"
-            >
-              <Input 
-                size="large" 
-                prefix={<EnvironmentOutlined />} 
-                placeholder="Ex: Bâtiment A, 1er étage"
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="nombre_de_places"
-              label="Nombre de Places"
-            >
-              <InputNumber 
-                size="large" 
-                min={0}
-                style={{ width: '100%' }}
-                placeholder="Ex: 100"
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="description"
-              label="Description"
-            >
-              <TextArea 
-                rows={4}
-                placeholder="Description du service..."
-              />
-            </Form.Item>
+            {/* Planning de contrôle */}
+            <div className="mb-4">
+              <Text strong className="block mb-2">
+                <ClockCircleOutlined className="mr-1" />
+                Planning de Contrôle
+              </Text>
+              <Text type="secondary" className="text-sm block mb-3">
+                Définissez les créneaux et les agents de contrôle pour ce service.
+              </Text>
+              <Form.List name="planning">
+                {(fields, { add, remove }) => (
+                  <>
+                    {fields.map(({ key, name, ...restField }) => (
+                      <div key={key} className="rounded-2xl border border-border bg-muted p-4 mb-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <Text strong>Créneau {name + 1}</Text>
+                          <Button
+                            type="text"
+                            icon={<MinusCircleOutlined />}
+                            danger
+                            onClick={() => remove(name)}
+                            size="small"
+                          />
+                        </div>
+                        <Row gutter={[12, 12]}>
+                          <Col xs={24} sm={8}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'jour']}
+                              label="Jour"
+                              rules={[{ required: true, message: 'Le jour est requis' }]}
+                            >
+                              <Select placeholder="Sélectionner un jour" options={DayOptions} />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={12} sm={8}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'heureDebut']}
+                              label="Heure début"
+                              rules={[{ required: true, message: 'L\'heure de début est requise' }]}
+                            >
+                              <TimePicker format="HH:mm" className="w-full" />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={12} sm={8}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'heureFin']}
+                              label="Heure fin"
+                              rules={[{ required: true, message: 'L\'heure de fin est requise' }]}
+                            >
+                              <TimePicker format="HH:mm" className="w-full" />
+                            </Form.Item>
+                          </Col>
+                          <Col span={24}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'agents']}
+                              label="Agents de contrôle"
+                            >
+                              <Select
+                                mode="multiple"
+                                placeholder="Sélectionner les agents"
+                                options={controleurOptions}
+                                loading={isLoadingControleurs}
+                                optionFilterProp="label"
+                                showSearch
+                              />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                      </div>
+                    ))}
+                    <Button
+                      type="dashed"
+                      onClick={() => add({ jour: 0, heureDebut: undefined, heureFin: undefined, agents: [] })}
+                      icon={<PlusOutlined />}
+                      className="w-full"
+                    >
+                      Ajouter un créneau
+                    </Button>
+                  </>
+                )}
+              </Form.List>
+            </div>
 
             <Form.Item
               name="active"
@@ -682,7 +656,7 @@ function RouteComponent() {
           </Space>
         }
       >
-        <Spin spinning={loadingUpdate || isLoadingControleurs}>
+        <Spin spinning={loadingUpdate || isLoadingTickets}>
           <Form
             form={formU}
             layout="vertical"
@@ -705,7 +679,7 @@ function RouteComponent() {
             </Form.Item>
 
             <Form.Item
-              name="typeService"
+              name="type"
               label="Type de Service"
               rules={[{ required: true, message: 'Le type est requis' }]}
             >
@@ -717,87 +691,107 @@ function RouteComponent() {
             </Form.Item>
 
             <Form.Item
-              name="gerant"
-              label="Gérant"
-              rules={[{ required: true, message: 'Le gérant est requis' }]}
+              name="ticket"
+              label="Ticket"
+              rules={[{ required: true, message: 'Le ticket est requis' }]}
             >
               <Select
                 size="large"
                 showSearch
-                placeholder="Sélectionner un gérant"
-                options={gerants?.map(user => ({
-                  value: user._id,
-                  label: `${user.email} - ${user.name}`
+                placeholder="Sélectionner un ticket"
+                options={tickets?.map(t => ({
+                  value: t._id,
+                  label: `${t.nom} (${t.prix} FCFA)`
                 }))}
               />
             </Form.Item>
 
-            <Form.Item
-              name="agentsControle"
-              label="Agents de Contrôle"
-            >
-              <Select
-                mode="multiple"
-                size="large"
-                showSearch
-                placeholder="Sélectionner des agents"
-                options={controleurs?.map(user => ({
-                  value: user._id,
-                  label: `${user.email} - ${user.name}`
-                }))}
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="ticketsacceptes"
-              label="Tickets Acceptés"
-              tooltip="Sélectionnez les tickets qui peuvent être utilisés dans ce service"
-            >
-              <Select
-                mode="multiple"
-                size="large"
-                showSearch
-                placeholder="Sélectionner des tickets"
-                options={ticketOptions}
-                loading={isLoadingTickets}
-                filterOption={(input, option) =>
-                  option?.label?.toLowerCase().includes(input.toLowerCase()) || false
-                }
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="localisation"
-              label="Localisation"
-            >
-              <Input 
-                size="large" 
-                prefix={<EnvironmentOutlined />} 
-                placeholder="Ex: Bâtiment A, 1er étage"
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="nombre_de_places"
-              label="Nombre de Places"
-            >
-              <InputNumber 
-                size="large" 
-                min={0}
-                style={{ width: '100%' }}
-                placeholder="Ex: 100"
-              />
-            </Form.Item>
-
-            <Form.Item
-              name="description"
-              label="Description"
-            >
-              <TextArea 
-                rows={4}
-                placeholder="Description du service..."
-              />
-            </Form.Item>
+            {/* Planning de contrôle */}
+            <div className="mb-4">
+              <Text strong className="block mb-2">
+                <ClockCircleOutlined className="mr-1" />
+                Planning de Contrôle
+              </Text>
+              <Text type="secondary" className="text-sm block mb-3">
+                Définissez les créneaux et les agents de contrôle pour ce service.
+              </Text>
+              <Form.List name="planning">
+                {(fields, { add, remove }) => (
+                  <>
+                    {fields.map(({ key, name, ...restField }) => (
+                      <div key={key} className="rounded-2xl border border-border bg-muted p-4 mb-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <Text strong>Créneau {name + 1}</Text>
+                          <Button
+                            type="text"
+                            icon={<MinusCircleOutlined />}
+                            danger
+                            onClick={() => remove(name)}
+                            size="small"
+                          />
+                        </div>
+                        <Row gutter={[12, 12]}>
+                          <Col xs={24} sm={8}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'jour']}
+                              label="Jour"
+                              rules={[{ required: true, message: 'Le jour est requis' }]}
+                            >
+                              <Select placeholder="Sélectionner un jour" options={DayOptions} />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={12} sm={8}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'heureDebut']}
+                              label="Heure début"
+                              rules={[{ required: true, message: 'L\'heure de début est requise' }]}
+                            >
+                              <TimePicker format="HH:mm" className="w-full" />
+                            </Form.Item>
+                          </Col>
+                          <Col xs={12} sm={8}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'heureFin']}
+                              label="Heure fin"
+                              rules={[{ required: true, message: 'L\'heure de fin est requise' }]}
+                            >
+                              <TimePicker format="HH:mm" className="w-full" />
+                            </Form.Item>
+                          </Col>
+                          <Col span={24}>
+                            <Form.Item
+                              {...restField}
+                              name={[name, 'agents']}
+                              label="Agents de contrôle"
+                            >
+                              <Select
+                                mode="multiple"
+                                placeholder="Sélectionner les agents"
+                                options={controleurOptions}
+                                loading={isLoadingControleurs}
+                                optionFilterProp="label"
+                                showSearch
+                              />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                      </div>
+                    ))}
+                    <Button
+                      type="dashed"
+                      onClick={() => add({ jour: 0, heureDebut: undefined, heureFin: undefined, agents: [] })}
+                      icon={<PlusOutlined />}
+                      className="w-full"
+                    >
+                      Ajouter un créneau
+                    </Button>
+                  </>
+                )}
+              </Form.List>
+            </div>
 
             <Form.Item
               name="active"

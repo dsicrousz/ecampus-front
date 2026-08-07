@@ -9,47 +9,25 @@ export enum TypeService {
   AUTRE = 'autre',
 }
 
+export interface PlanningControle {
+  jour: number;
+  heureDebut: string;
+  heureFin: string;
+  agents: string[];
+}
+
 export interface Service {
   _id: string;
   nom: string;
-  typeService: TypeService;
-  
-  // Gérant (autopopulate)
-  gerant: {
-    _id: string;
-    nom: string;
-    prenom: string;
-    email: string;
-    role?: string[];
-  };
-  
-  // Agents de contrôle (autopopulate)
-  agentsControle: Array<string | {
-    _id: string;
-    nom: string;
-    prenom: string;
-    email: string;
-    role?: string[];
-  }>;
-  
-  // Tickets acceptés (autopopulate)
-  ticketsacceptes: Ticket[];
-  
-  // Restaurant (autopopulate)
-  restaurant?: {
-    _id: string;
-    nom: string;
-  };
-  
-  // Prix par type de ticket (Map)
-  prixRepreneur: Record<string, number>;
-  
+  type: TypeService;
   active: boolean;
-  localisation?: string;
-  nombre_de_places?: number;
-  description?: string;
-  
+
+  // Ticket lié au service (autopopulate, required)
+  ticket: Ticket | string;
+
+  // Planning de contrôle
+  planning?: PlanningControle[];
+
   createdAt?: Date;
   updatedAt?: Date;
-  __v?: number;
 }
