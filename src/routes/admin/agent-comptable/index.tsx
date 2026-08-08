@@ -694,6 +694,9 @@ function RouteComponent() {
               <ActeurTableSkeleton />
             ) : recouvreurs?.length ? (
               recouvreurs.map((recouvreur: UserType) => {
+                const getActeurId = (val: any) =>
+                  typeof val === 'object' ? val?._id : val;
+
                 const totalRecu =
                   allTransferts
                     ?.filter(
@@ -701,17 +704,29 @@ function RouteComponent() {
                         t.source_type_acteur === TYPE_ACTEUR.VENDEUR &&
                         t.destination_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
                         t.etat === ETAT_TRANSFERT.VALIDE &&
-                        typeof t.destination_acteur_id === 'object' &&
-                        t.destination_acteur_id._id === recouvreur._id
+                        getActeurId(t.destination_acteur_id) === recouvreur._id
                     )
                     .reduce((acc, t) => acc + t.montant, 0) || 0;
+
+                const totalEnvoye =
+                  allTransferts
+                    ?.filter(
+                      (t) =>
+                        t.source_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
+                        t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
+                        t.etat === ETAT_TRANSFERT.VALIDE &&
+                        getActeurId(t.source_acteur_id) === recouvreur._id
+                    )
+                    .reduce((acc, t) => acc + t.montant, 0) || 0;
+
+                const solde = totalRecu - totalEnvoye;
                 return (
                   <ActeurRow
                     key={recouvreur._id}
                     name={recouvreur.name || ''}
-                    amount={totalRecu}
-                    amountLabel="Reçu"
-                    positive={totalRecu > 0}
+                    amount={solde}
+                    amountLabel="Solde"
+                    positive={solde > 0}
                   />
                 );
               })
@@ -734,6 +749,9 @@ function RouteComponent() {
               <ActeurTableSkeleton />
             ) : caissiersPrincipaux?.length ? (
               caissiersPrincipaux.map((caissier: UserType) => {
+                const getActeurId = (val: any) =>
+                  typeof val === 'object' ? val?._id : val;
+
                 const totalRecu =
                   allTransferts
                     ?.filter(
@@ -741,17 +759,29 @@ function RouteComponent() {
                         t.source_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
                         t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
                         t.etat === ETAT_TRANSFERT.VALIDE &&
-                        typeof t.destination_acteur_id === 'object' &&
-                        t.destination_acteur_id._id === caissier._id
+                        getActeurId(t.destination_acteur_id) === caissier._id
                     )
                     .reduce((acc, t) => acc + t.montant, 0) || 0;
+
+                const totalEnvoye =
+                  allTransferts
+                    ?.filter(
+                      (t) =>
+                        t.source_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
+                        t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE &&
+                        t.etat === ETAT_TRANSFERT.VALIDE &&
+                        getActeurId(t.source_acteur_id) === caissier._id
+                    )
+                    .reduce((acc, t) => acc + t.montant, 0) || 0;
+
+                const solde = totalRecu - totalEnvoye;
                 return (
                   <ActeurRow
                     key={caissier._id}
                     name={caissier.name || ''}
-                    amount={totalRecu}
-                    amountLabel="Reçu"
-                    positive={totalRecu > 0}
+                    amount={solde}
+                    amountLabel="Solde"
+                    positive={solde > 0}
                   />
                 );
               })
