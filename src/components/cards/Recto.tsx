@@ -165,7 +165,7 @@ function Recto({ compte }: RectoProps) {
             backgroundColor: '#ffffff',
           }}>
             <Image
-              src={{ uri: `${env.VITE_APP_BACKURL_ETUDIANT}/${etudiant.avatar}` }}
+              src={{ uri: `${env.VITE_R2_URL}/${etudiant.avatar}` }}
               style={{
                 width: 56,
                 height: 56,

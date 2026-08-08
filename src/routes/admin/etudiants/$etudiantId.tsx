@@ -101,7 +101,7 @@ function RouteComponent() {
         margin: [0, 20, 0, 0]
       },
       images: {
-        avatar: `${env.VITE_APP_BACKURL_ETUDIANT}/${etudiant?.avatar}`,
+        avatar: `${env.VITE_R2_URL}/${etudiant?.avatar}`,
       },
       styles: {
         title: {
@@ -355,7 +355,7 @@ function RouteComponent() {
                       offset={[-10, 100]}
                     >
                       <Avatar
-                        src={etudiant?.avatar ? `${env.VITE_APP_BACKURL_ETUDIANT}/${etudiant.avatar}` : undefined}
+                        src={etudiant?.avatar ? `${env.VITE_R2_URL}/${etudiant.avatar}` : undefined}
                         size={{ xs: 100, sm: 120, md: 120,lg:120,xl:140 }}
                         icon={<UserOutlined />}
                         style={{

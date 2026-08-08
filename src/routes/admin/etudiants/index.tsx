@@ -85,7 +85,7 @@ function RouteComponent() {
       render: (avatar: string) => (
         <Avatar 
           size={64} 
-          src={avatar ? `${env.VITE_APP_BACKURL_ETUDIANT}/${avatar}` : undefined}
+          src={avatar ? `${env.VITE_R2_URL}/${avatar}` : undefined}
           icon={<UserOutlined />}
         />
       ),
