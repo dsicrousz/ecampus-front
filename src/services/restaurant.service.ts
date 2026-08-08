@@ -22,4 +22,8 @@ export class RestaurantService extends Service<Restaurant> {
   async byAgent(agentId: string): Promise<Restaurant[]> {
     return this.api.get(`/${this.ressource}/by-agent-controle/${agentId}`).then((res: any) => res.data);
   }
+
+  async getRepreneurDashboard(repreneurId: string): Promise<any> {
+    return this.api.get(`/repreneur/dashboard/${repreneurId}`).then((res: any) => res.data);
+  }
 }

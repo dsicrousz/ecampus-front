@@ -61,50 +61,79 @@ function RouteComponent() {
     queryFn: () => decadeService.getAll(),
   })
 
-  // Récupérer les opérations de la décade sélectionnée
+  // Extraire les IDs des services du restaurant
+  const serviceIds = (service?.services || [])
+    .map((entry: any) => typeof entry.service === 'object' ? entry.service?._id : entry.service)
+    .filter(Boolean)
+
+  // Récupérer les opérations de la décade sélectionnée pour tous les services du restaurant
   const { data: operations, isLoading: isLoadingOperations } = useQuery({
     queryKey: ['operations', selectedDecade, serviceId],
-    queryFn: () => operationService.byDecadeAndService(selectedDecade!, serviceId!),
-    enabled: !!selectedDecade && !!serviceId
+    queryFn: async () => {
+      const allOps = await operationService.byDecade(selectedDecade!)
+      return (allOps || []).filter((op: Operation) =>
+        serviceIds.includes(op.service) ||
+        serviceIds.includes(typeof op.serviceSnapshot === 'object' ? op.serviceSnapshot?._id : op.service)
+      )
+    },
+    enabled: !!selectedDecade && !!serviceId && serviceIds.length > 0
   })
 
-  // Grouper les opérations par date et par ticket
+  // Grouper les opérations par service, puis par date et par ticket
   const groupedOperations = operations?.reduce((acc: any, op: Operation) => {
+    const serviceName = typeof op.serviceSnapshot === 'object' ? op.serviceSnapshot?.nom : 'Service inconnu'
+    const serviceKey = serviceName || 'Service inconnu'
     const date = dayjs(op.createdAt).format('DD/MM/YYYY')
     const ticketId = op.ticketSnapshot?._id
     const ticketNom = op.ticketSnapshot?.nom
     const prixRepreneur = op.ticketSnapshot?.prix || 0
 
-    if (!acc[date]) {
-      acc[date] = {
+    if (!acc[serviceKey]) {
+      acc[serviceKey] = {}
+    }
+    if (!acc[serviceKey][date]) {
+      acc[serviceKey][date] = {
         date,
         tickets: {},
         totalJour: 0
       }
     }
 
-    if (!acc[date].tickets[ticketId!]) {
-      acc[date].tickets[ticketId!] = {
+    if (!acc[serviceKey][date].tickets[ticketId!]) {
+      acc[serviceKey][date].tickets[ticketId!] = {
         nom: ticketNom,
         count: 0,
         montant: 0
       }
     }
 
-    acc[date].tickets[ticketId!].count++
-    acc[date].tickets[ticketId!].montant += prixRepreneur
-    acc[date].totalJour += prixRepreneur
+    acc[serviceKey][date].tickets[ticketId!].count++
+    acc[serviceKey][date].tickets[ticketId!].montant += prixRepreneur
+    acc[serviceKey][date].totalJour += prixRepreneur
 
     return acc
   }, {})
 
-  const summaryData = Object.entries(groupedOperations || {}).map(([date, data]: [string, any]) => ({
-    date,
-    ...data,
-    ticketDetails: Object.values(data.tickets)
-  }))
+  // Aplatir les données groupées par service pour le tableau
+  const summaryData = Object.entries(groupedOperations || {}).flatMap(([serviceName, days]: [string, any]) =>
+    Object.entries(days).map(([date, data]: [string, any]) => ({
+      key: `${serviceName}-${date}`,
+      serviceName,
+      date,
+      ...data,
+      ticketDetails: Object.values(data.tickets)
+    }))
+  )
 
   const columns: ColumnsType<any> = [
+    {
+      title: 'Service',
+      key: 'serviceName',
+      dataIndex: 'serviceName',
+      render: (name: string) => (
+        <Tag color="cyan">{name}</Tag>
+      )
+    },
     {
       title: 'Date',
       key: 'date',
@@ -356,12 +385,12 @@ function RouteComponent() {
             className="controller-table"
             columns={columns}
             dataSource={summaryData}
-            rowKey="date"
+            rowKey="key"
             loading={isLoadingOperations}
             pagination={{
               defaultPageSize: 10,
               showSizeChanger: true,
-              showTotal: (total) => `Total: ${total} jours`
+              showTotal: (total) => `Total: ${total} entrée(s)`
             }}
           />
 
