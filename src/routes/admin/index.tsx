@@ -182,7 +182,7 @@ const OperationNotification = memo(({ operation }: { operation: Operation }) => 
         <div className="relative">
           <Avatar className="size-14 border-2 border-primary/40">
             {operation.compte?.etudiant?.avatar ? (
-              <AvatarImage src={`${env.VITE_APP_BACKURL_ETUDIANT}/${operation.compte.etudiant.avatar}`} />
+              <AvatarImage src={`${env.VITE_R2_URL}/${operation.compte.etudiant.avatar}`} />
             ) : null}
             <AvatarFallback>
               {operation.compte?.etudiant?.prenom?.[0]}
@@ -616,7 +616,7 @@ function RouteComponent() {
                                       >
                                         <Avatar className="size-6 shrink-0 border border-border">
                                           {op.compte?.etudiant?.avatar ? (
-                                            <AvatarImage src={`${env.VITE_APP_BACKURL_ETUDIANT}/${op.compte.etudiant.avatar}`} />
+                                            <AvatarImage src={`${env.VITE_R2_URL}/${op.compte.etudiant.avatar}`} />
                                           ) : null}
                                           <AvatarFallback className="text-[10px] font-semibold">
                                             {op.compte?.etudiant?.prenom?.[0]}

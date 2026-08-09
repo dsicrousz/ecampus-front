@@ -170,7 +170,7 @@ function RouteComponent() {
       <div className="flex items-center gap-3">
         <div className="relative shrink-0">
           <img
-            src={`${env.VITE_APP_BACKURL_ETUDIANT}/${operation.compte?.etudiant?.avatar}`}
+            src={`${env.VITE_R2_URL}/${operation.compte?.etudiant?.avatar}`}
             alt={`${operation.compte?.etudiant?.prenom ?? ''} ${operation.compte?.etudiant?.nom ?? ''}`}
             className="h-12 w-12 rounded-full border-2 border-border object-cover"
             onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
@@ -482,7 +482,7 @@ function RouteComponent() {
                   <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl ring-2 ring-border">
                     {studentData?.etudiant?.avatar ? (
                       <Image
-                        src={`${env.VITE_APP_BACKURL_ETUDIANT}/${studentData.etudiant.avatar}`}
+                        src={`${env.VITE_R2_URL}/${studentData.etudiant.avatar}`}
                         alt={`${studentData.etudiant.prenom} ${studentData.etudiant.nom}`}
                         width={64}
                         height={64}

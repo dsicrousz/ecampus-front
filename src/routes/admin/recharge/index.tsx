@@ -778,7 +778,7 @@ function RouteComponent() {
             {/* En-tête étudiant */}
             <div className="flex items-center gap-4 border-b border-border/60 px-6 py-5">
               <Avatar className="size-20 shrink-0 border-2 border-border">
-                <AvatarImage src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`} />
+                <AvatarImage src={`${env.VITE_R2_URL}/${data.etudiant?.avatar}`} />
                 <AvatarFallback className="text-lg font-semibold">
                   {data.etudiant?.prenom?.[0]?.toUpperCase() || '?'}
                 </AvatarFallback>
@@ -1065,7 +1065,7 @@ function RouteComponent() {
           {data && (
             <div className="flex items-center gap-4 rounded-xl border border-sky-200 bg-sky-50 p-4 dark:border-sky-900 dark:bg-sky-950/40">
               <Avatar className="size-14 shrink-0 border-2 border-background shadow-sm">
-                <AvatarImage src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`} />
+                <AvatarImage src={`${env.VITE_R2_URL}/${data.etudiant?.avatar}`} />
                 <AvatarFallback className="text-sm font-semibold">
                   {data.etudiant?.prenom?.[0]?.toUpperCase() || '?'}
                 </AvatarFallback>
@@ -1329,7 +1329,7 @@ function RouteComponent() {
           {data && (
             <div className="flex items-center gap-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 dark:border-cyan-900 dark:bg-cyan-950/40">
               <Avatar className="size-14 shrink-0 border-2 border-background shadow-sm">
-                <AvatarImage src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant?.avatar}`} />
+                <AvatarImage src={`${env.VITE_R2_URL}/${data.etudiant?.avatar}`} />
                 <AvatarFallback className="text-sm font-semibold">
                   {data.etudiant?.prenom?.[0]?.toUpperCase() || '?'}
                 </AvatarFallback>

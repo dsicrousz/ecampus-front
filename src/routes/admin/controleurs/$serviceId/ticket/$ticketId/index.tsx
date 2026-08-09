@@ -185,7 +185,7 @@ function RouteComponent() {
       <div className="flex items-center gap-4 pl-2">
         <div className="relative shrink-0">
           <Avatar
-            src={`${env.VITE_APP_BACKURL_ETUDIANT}/${operation.compte?.etudiant?.avatar}`}
+            src={`${env.VITE_R2_URL}/${operation.compte?.etudiant?.avatar}`}
             size={52}
             className="ring-2 ring-border"
           />
@@ -435,7 +435,7 @@ function RouteComponent() {
                         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-muted ring-2 ring-border">
                             {studentData?.etudiant?.avatar ? (
                                 <Image
-                                    src={env.VITE_APP_BACKURL_ETUDIANT + '/'+ studentData.etudiant.avatar}
+                                    src={env.VITE_R2_URL + '/'+ studentData.etudiant.avatar}
                                     alt={`Photo de ${studentData.etudiant.prenom} ${studentData.etudiant.nom}`}
                                     width={80}
                                     height={80}

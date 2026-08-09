@@ -254,7 +254,7 @@ function RouteComponent() {
               <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl ring-2 ring-border">
                 {data.etudiant?.avatar ? (
                   <img
-                    src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant.avatar}`}
+                    src={`${env.VITE_R2_URL}/${data.etudiant.avatar}`}
                     alt={`${data.etudiant.prenom} ${data.etudiant.nom}`}
                     className="h-full w-full object-cover"
                     onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
@@ -548,7 +548,7 @@ function RouteComponent() {
                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl ring-2 ring-border">
                     {data.etudiant?.avatar ? (
                       <img
-                        src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant.avatar}`}
+                        src={`${env.VITE_R2_URL}/${data.etudiant.avatar}`}
                         alt={`${data.etudiant.prenom} ${data.etudiant.nom}`}
                         className="h-full w-full object-cover"
                         onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
@@ -694,7 +694,7 @@ function RouteComponent() {
                   <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl ring-2 ring-border">
                     {data.etudiant?.avatar ? (
                       <img
-                        src={`${env.VITE_APP_BACKURL_ETUDIANT}/${data.etudiant.avatar}`}
+                        src={`${env.VITE_R2_URL}/${data.etudiant.avatar}`}
                         alt={`${data.etudiant.prenom} ${data.etudiant.nom}`}
                         className="h-full w-full object-cover"
                         onError={(e) => { (e.target as HTMLImageElement).src = '/default-avatar.png'; }}
