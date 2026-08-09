@@ -30,13 +30,15 @@ import {
   CalendarOutlined,
   InboxOutlined
 } from '@ant-design/icons';
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { PubService } from '@/services/pub.service';
 import type { ColumnsType } from 'antd/es/table';
 import type { Pub, CreatePubDto } from '@/types/pub';
 import { USER_ROLE } from '@/types/user.roles';
 import dayjs from 'dayjs';
 import { env } from '@/env';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationControls } from '@/components/pagination-controls';
 const { Title, Text } = Typography;
 const { TextArea } = Input;
 
@@ -50,7 +52,7 @@ function RouteComponent() {
   const canEdit = canModify(session?.user?.role);
   const [opened, setOpened] = useState(false);
   const [openedU, setOpenedU] = useState(false);
-  const [searchText, setSearchText] = useState('');
+  const pagination = usePagination({ initialLimit: 10, initialSortBy: 'titre', initialSortOrder: 'asc' });
   
   const [form] = Form.useForm();
   const [formU] = Form.useForm();
@@ -58,10 +60,13 @@ function RouteComponent() {
   const qc = useQueryClient();
   const pubService = new PubService();
 
-  const { data: pubs, isLoading } = useQuery({ 
-    queryKey: ['pubs'], 
-    queryFn: () => pubService.getAll() 
+  const { data: pubsData, isLoading } = useQuery({
+    queryKey: ['pubs', 'paginated', pagination.params],
+    queryFn: () => pubService.getPaginated(pagination.params),
   });
+  const pubs = pubsData?.data ?? [];
+  const total = pubsData?.total ?? 0;
+  const totalPages = pubsData?.totalPages ?? 1;
   // Create mutation
   const { mutate: createPub, isPending: loadingCreate } = useMutation({
     mutationFn: (data: CreatePubDto) => pubService.create(data),
@@ -235,19 +240,8 @@ function RouteComponent() {
     },
   ];
 
-  const filteredPubs = useMemo(() => {
-    if (!pubs) return [];
-    if (!searchText) return pubs;
-    
-    const searchLower = searchText.toLowerCase();
-    return pubs.filter(pub => 
-      pub.titre?.toLowerCase().includes(searchLower) ||
-      pub.description?.toLowerCase().includes(searchLower)
-    );
-  }, [pubs, searchText]);
-
-  const activePubs = pubs?.filter(pub => !pub.isExpired).length || 0;
-  const inactivePubs = pubs?.filter(pub => pub.isExpired).length || 0;
+  const activePubs = pubs.filter(p => !p.isExpired).length;
+  const inactivePubs = pubs.filter(p => p.isExpired).length;
 
   return (
     <div className="controller-page">
@@ -277,8 +271,8 @@ function RouteComponent() {
                   <Input
                     placeholder="Rechercher..."
                     prefix={<SearchOutlined />}
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
+                    value={pagination.search}
+                    onChange={(e) => pagination.setSearch(e.target.value)}
                     allowClear
                     style={{ width: 250 }}
                   />
@@ -300,7 +294,7 @@ function RouteComponent() {
               <Card className="controller-stat-card" size="small">
                 <Statistic
                   title={<span className="text-primary font-medium">Total Publicités</span>}
-                  value={pubs?.length || 0}
+                  value={pubs.length}
                   prefix={<SoundOutlined />}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
                 />
@@ -331,15 +325,18 @@ function RouteComponent() {
             <Table
               className="controller-table"
               columns={columns}
-              dataSource={filteredPubs}
+              dataSource={pubs}
               rowKey="_id"
               loading={isLoading}
               scroll={{ x: 1000 }}
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                showTotal: (total) => `Total: ${total} publicité(s)`,
-              }}
+              pagination={false}
+            />
+            <PaginationControls
+              pagination={pagination}
+              total={total}
+              totalPages={totalPages}
+              pageSizeOptions={[10, 20, 50]}
+              loading={isLoading}
             />
           </Card>
         </Space>

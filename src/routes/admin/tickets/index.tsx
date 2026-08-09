@@ -3,12 +3,14 @@ import { requireRole, canModify } from '@/lib/route-protection';
 import { useSession } from '@/auth/auth-client';
 import { Card, Table, Button, Input, Space, Tag, Popconfirm, message, Spin, Drawer, Form, InputNumber, Switch, Select, Typography, Row, Col, Statistic } from 'antd';
 import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { TicketService } from '@/services/ticket.service';
 import { TicketType, type Ticket, type TicketFormValues } from '@/types/ticket';
 import type { ColumnsType } from 'antd/es/table';
 import { USER_ROLE } from '@/types/user.roles';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationControls } from '@/components/pagination-controls';
 
 const { Title, Text } = Typography;
 
@@ -22,17 +24,20 @@ function RouteComponent() {
   const canEdit = canModify(session?.user?.role);
   const [opened, setOpened] = useState(false);
   const [editingTicket, setEditingTicket] = useState<Ticket | null>(null);
-  const [searchText, setSearchText] = useState('');
+  const pagination = usePagination({ initialLimit: 10, initialSortBy: 'nom', initialSortOrder: 'asc' });
 
   const [form] = Form.useForm<TicketFormValues>();
   const qc = useQueryClient();
   const ticketService = new TicketService();
   const key = ['tickets'];
 
-  const { data: tickets, isLoading: isLoadingTickets } = useQuery<Ticket[]>({
-    queryKey: key,
-    queryFn: () => ticketService.getAll()
+  const { data: ticketsData, isLoading: isLoadingTickets } = useQuery({
+    queryKey: ['tickets', 'paginated', pagination.params],
+    queryFn: () => ticketService.getPaginated(pagination.params),
   });
+  const tickets = ticketsData?.data ?? [];
+  const total = ticketsData?.total ?? 0;
+  const totalPages = ticketsData?.totalPages ?? 1;
 
   const { mutate: createTicket, isPending: loadingCreate } = useMutation({
     mutationFn: (data: Partial<Ticket>) => ticketService.create(data),
@@ -108,16 +113,6 @@ function RouteComponent() {
     setEditingTicket(null);
     form.resetFields();
   };
-
-  const filteredTickets = useMemo(() => {
-    if (!tickets) return [];
-    if (!searchText) return tickets;
-
-    return tickets.filter((ticket: Ticket) =>
-      ticket.nom?.toLowerCase().includes(searchText.toLowerCase()) ||
-      ticket.description?.toLowerCase().includes(searchText.toLowerCase())
-    );
-  }, [tickets, searchText]);
 
   const columns: ColumnsType<Ticket> = [
     {
@@ -215,8 +210,8 @@ function RouteComponent() {
     },
   ];
 
-  const activeTickets = filteredTickets.filter(t => t.active).length;
-  const inactiveTickets = filteredTickets.filter(t => !t.active).length;
+  const activeTickets = tickets.filter(t => t.active).length;
+  const inactiveTickets = tickets.filter(t => !t.active).length;
 
   return (
     <div className="controller-page">
@@ -246,8 +241,8 @@ function RouteComponent() {
                   <Input
                     placeholder="Rechercher..."
                     prefix={<SearchOutlined />}
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
+                    value={pagination.search}
+                    onChange={(e) => pagination.setSearch(e.target.value)}
                     allowClear
                     style={{ width: 250 }}
                   />
@@ -269,7 +264,7 @@ function RouteComponent() {
               <Card className="controller-stat-card" size="small">
                 <Statistic
                   title={<span className="text-primary font-medium">Total Tickets</span>}
-                  value={filteredTickets.length}
+                  value={total}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
                 />
               </Card>
@@ -299,13 +294,15 @@ function RouteComponent() {
             <Table
               className="controller-table"
               columns={columns}
-              dataSource={filteredTickets}
+              dataSource={tickets}
               rowKey="_id"
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                showTotal: (total) => `Total: ${total} ticket(s)`,
-              }}
+              pagination={false}
+            />
+            <PaginationControls
+              pagination={pagination}
+              totalPages={totalPages}
+              total={total}
+              pageSizeOptions={[10, 20, 50]}
             />
           </Card>
         </Space>

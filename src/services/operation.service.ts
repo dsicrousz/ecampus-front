@@ -1,6 +1,7 @@
 import Api from "./Api";
 import { Service } from "./Service";
 import type { DateRangeParams } from "@/hooks/use-time-range-filter";
+import type { DashboardStatsDto } from "@/types/pagination";
 
 /**
  * Construit la query string pour les paramètres de période.
@@ -198,5 +199,13 @@ export class OperationService extends Service {
 
   async hasConsumedToday(compteId: string, ticketType: string): Promise<any> {
     return this.api.get(`/${this.ressource}/hasconsumedtoday/${compteId}?ticketType=${ticketType}`).then((res: any) => res.data);
+  }
+
+  /**
+   * Récupère les statistiques agrégées du dashboard (totaux par type + services/tickets).
+   * GET /operation/stats/dashboard?dateDebut=...&dateFin=...
+   */
+  async getDashboardStats(dateRange?: DateRangeParams): Promise<DashboardStatsDto> {
+    return this.api.get(`/${this.ressource}/stats/dashboard${buildDateQuery(dateRange)}`).then((res: any) => res.data);
   }
 }

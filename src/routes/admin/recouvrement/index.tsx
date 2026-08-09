@@ -33,6 +33,7 @@ import { DateRangeFilter } from '@/components/date-range-filter';
 import { useTimeRangeFilter } from '@/hooks/use-time-range-filter';
 import { useTableSearchSort, type ColumnDef } from '@/hooks/use-table-search-sort';
 import { SortableHeader, TableToolbar } from '@/components/table-controls';
+import { unwrapTransfertResponse, type TransfertResponseWithStats } from '@/types/pagination';
 
 export const Route = createFileRoute('/admin/recouvrement/')({
   beforeLoad: () => requireRole([USER_ROLE.RECOUVREUR, USER_ROLE.SUPERADMIN]),
@@ -391,11 +392,13 @@ function RouteComponent() {
   const caissiersPrincipauxKey = ['caissiers-principaux'];
 
   // Transferts reçus des vendeurs (en attente de validation)
-  const { data: transfertsRecus, isLoading: isLoadingTransfertsRecus } = useQuery<TransfertVersement[]>({
+  const { data: transfertsRecus, isLoading: isLoadingTransfertsRecus } = useQuery<TransfertVersement[] | TransfertResponseWithStats<TransfertVersement>>({
     queryKey: transfertsRecusKey,
-    queryFn: () => transfertVersementService.findByRecouvreur(session!.user.id, params),
+    queryFn: () => transfertVersementService.findByRecouvreur(session!.user.id, params, true),
     enabled: !!session?.user?.id,
   });
+
+  const { data: transfertsRecusData, stats: transfertsRecusStats } = unwrapTransfertResponse(transfertsRecus ?? []);
 
   // Transferts envoyés vers le caissier principal
   const { data: transfertsEnvoyes, isLoading: isLoadingTransfertsEnvoyes } = useQuery<TransfertVersement[]>({
@@ -466,7 +469,7 @@ function RouteComponent() {
     createTransfert(transfertData);
   };
 
-  const transfertsRecusDesVendeurs = transfertsRecus?.filter(
+  const transfertsRecusDesVendeurs = transfertsRecusData?.filter(
     (t) => t.destination_type_acteur !== 'CAISSIER_PRINCIPAL'
   ) || [];
 
@@ -479,8 +482,6 @@ function RouteComponent() {
   const transfertsEnAttenteEnvoyes = transfertsEnvoyes?.filter((t) => t.etat === ETAT_TRANSFERT.EN_ATTENTE) || [];
   const transfertsValidesEnvoyes = transfertsEnvoyes?.filter((t) => t.etat === ETAT_TRANSFERT.VALIDE) || [];
   const transfertsRefusesEnvoyes = transfertsEnvoyes?.filter((t) => t.etat === ETAT_TRANSFERT.REFUSE) || [];
-
-  const montantTotalRecu = transfertsValidesRecus.reduce((acc, t) => acc + t.montant, 0);
 
   const isLoadingRecus = isLoadingTransfertsRecus || isPendingValider || isPendingRefuser;
   const isLoadingEnvoyes = isLoadingTransfertsEnvoyes;
@@ -589,25 +590,25 @@ function RouteComponent() {
           <>
             <StatCard
               label="En attente"
-              value={transfertsEnAttenteRecus.length}
+              value={transfertsRecusStats?.enAttente ?? 0}
               icon={<Clock className="size-5" />}
               accent="amber"
             />
             <StatCard
               label="Validés"
-              value={transfertsValidesRecus.length}
+              value={transfertsRecusStats?.valides ?? 0}
               icon={<CheckCircle2 className="size-5" />}
               accent="emerald"
             />
             <StatCard
               label="Refusés"
-              value={transfertsRefusesRecus.length}
+              value={transfertsRecusStats?.refuses ?? 0}
               icon={<XCircle className="size-5" />}
               accent="red"
             />
             <StatCard
               label="Montant total reçu"
-              value={formatMontant(montantTotalRecu)}
+              value={formatMontant(transfertsRecusStats?.montantValide ?? 0)}
               icon={<Wallet className="size-5" />}
               accent="blue"
             />

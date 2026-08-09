@@ -16,8 +16,9 @@ import { requireRole, canModify } from '@/lib/route-protection';
 import { useSession } from '@/auth/auth-client';
 import { RestaurantService } from '@/services/restaurant.service';
 import { UserService } from '@/services/user.service';
-import { useDebounce } from 'react-use';
 import { USER_ROLE } from '@/types/user.roles';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationControls } from '@/components/pagination-controls';
 import { QUERY_KEYS } from '@/constants';
 import type { Restaurant, RestaurantFormValues } from '@/types/restaurant';
 import { Card, CardContent } from '@/components/ui/card';
@@ -349,8 +350,7 @@ function RestaurantForm({
 function RouteComponent() {
   const { data: session } = useSession();
   const canEdit = canModify(session?.user?.role);
-  const [searchText, setSearchText] = useState('');
-  const [debouncedSearchText, setDebouncedSearchText] = useState('');
+  const pagination = usePagination({ initialLimit: 10, initialSortBy: 'nom', initialSortOrder: 'asc' });
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingRestaurant, setEditingRestaurant] = useState<Restaurant | null>(null);
@@ -378,16 +378,17 @@ function RouteComponent() {
     value: RestaurantFormValues[K]
   ) => setEditForm((prev) => ({ ...prev, [key]: value }));
 
-  useDebounce(() => setDebouncedSearchText(searchText), 300, [searchText]);
-
   const restaurantService = new RestaurantService();
   const userService = new UserService();
   const queryClient = useQueryClient();
 
-  const { data: services, isLoading } = useQuery({
-    queryKey: [QUERY_KEYS.RESTAURANTS],
-    queryFn: () => restaurantService.getAll(),
+  const { data: restaurantsData, isLoading } = useQuery({
+    queryKey: [QUERY_KEYS.RESTAURANTS, 'paginated', pagination.params],
+    queryFn: () => restaurantService.getPaginated(pagination.params),
   });
+  const services = restaurantsData?.data ?? [];
+  const total = restaurantsData?.total ?? 0;
+  const totalPages = restaurantsData?.totalPages ?? 1;
 
   // Fetch superviseurs for select
   const { data: superviseurs, isLoading: isLoadingSuperviseurs } = useQuery({
@@ -479,20 +480,8 @@ function RouteComponent() {
     setCreateOpen(true);
   };
 
-  // Filtrer les restaurants
-  const restaurantServices =
-    services?.filter(
-      (service) =>
-        !debouncedSearchText ||
-        service.nom?.toLowerCase().includes(debouncedSearchText.toLowerCase()) ||
-        service.description?.toLowerCase().includes(debouncedSearchText.toLowerCase())
-    ) || [];
-
-  const totalServices = restaurantServices.reduce(
-    (acc, s) => acc + (s.services?.length || 0),
-    0
-  );
-  const activeCount = restaurantServices.filter((s) => s.active).length;
+  const totalServices = total;
+  const activeCount = services.filter((s) => s.active).length;
 
   return (
     <div className="controller-page space-y-6">
@@ -522,8 +511,8 @@ function RouteComponent() {
                 <Input
                   className="h-10 w-full pl-9 sm:w-64"
                   placeholder="Rechercher..."
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
+                  value={pagination.search}
+                  onChange={(e) => pagination.setSearch(e.target.value)}
                 />
               </div>
               {canEdit && (
@@ -548,7 +537,7 @@ function RouteComponent() {
             <>
               <StatCard
                 label="Total Restaurants"
-                value={restaurantServices.length}
+                value={total}
                 icon={<Store className="size-5" />}
                 accent="blue"
               />
@@ -575,12 +564,12 @@ function RouteComponent() {
               <RestaurantCardSkeleton key={i} />
             ))}
           </div>
-        ) : restaurantServices.length === 0 ? (
+        ) : services.length === 0 ? (
           <Card className="border-border/60 shadow-none">
             <CardContent className="px-5 py-5">
               <EmptyState
                 message={
-                  debouncedSearchText
+                  pagination.debouncedSearch
                     ? 'Aucun résultat pour votre recherche'
                     : 'Aucun restaurant disponible'
                 }
@@ -589,7 +578,7 @@ function RouteComponent() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {restaurantServices.map((service) => (
+            {services.map((service) => (
               <Link
                 key={service._id}
                 to="/admin/restaurations/$restaurantId"
@@ -683,6 +672,16 @@ function RouteComponent() {
             ))}
           </div>
         )}
+
+        {/* Pagination Controls */}
+        <PaginationControls
+          pagination={pagination}
+          total={total}
+          totalPages={totalPages}
+          pageSizeOptions={[10, 20, 50]}
+          searchPlaceholder="Rechercher un restaurant..."
+          loading={isLoading}
+        />
       </div>
 
       {/* Create Sheet */}

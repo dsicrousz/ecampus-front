@@ -1,7 +1,8 @@
 import Api from "./Api";
-import { Service } from "./Service";
+import { Service, buildPaginationQuery } from "./Service";
 import type { Decade } from '@/types/decade';
 import type { Operation } from '@/types/operation';
+import type { PaginatedResult, PaginationParams } from "@/types/pagination";
 
 export class DecadeService extends Service {
   constructor() {
@@ -22,5 +23,12 @@ export class DecadeService extends Service {
 
   async byService(serviceId: string): Promise<Decade[]> {
     return this.api.get(`/${this.ressource}/by-service/${serviceId}`).then((res: any) => res.data);
+  }
+
+  /**
+   * Récupère les décades avec pagination côté backend.
+   */
+  async getPaginated(params: PaginationParams): Promise<PaginatedResult<Decade>> {
+    return this.api.get(`/${this.ressource}${buildPaginationQuery(params)}`).then((res: any) => res.data);
   }
 }

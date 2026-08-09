@@ -26,13 +26,12 @@ import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  SearchOutlined,
   ShopOutlined,
   EyeOutlined,
   ClockCircleOutlined,
   MinusCircleOutlined,
 } from '@ant-design/icons';
-import { useMemo, useState, useEffect } from "react";
+import { useState } from "react";
 import { ServiceService } from '@/services/service.service';
 import { UserService } from '@/services/user.service';
 import type { ColumnsType } from 'antd/es/table';
@@ -42,6 +41,8 @@ import { QUERY_KEYS } from '@/constants';
 import { TicketService } from '@/services/ticket.service';
 import type { Ticket } from '@/types/ticket';
 import dayjs from 'dayjs';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationControls } from '@/components/pagination-controls';
 
 const { Title, Text } = Typography;
 
@@ -102,19 +103,10 @@ function RouteComponent() {
   const canEdit = canModify(session?.user?.role);
   const [opened, setOpened] = useState(false);
   const [openedU, setOpenedU] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [debouncedSearchText, setDebouncedSearchText] = useState('');
-  const [typeFilter, setTypeFilter] = useState<TypeService | null>(null);
   const ticketService = new TicketService();
   const userService = new UserService();
   const navigate = useNavigate();
-  // Debounce search text
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchText(searchText);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchText]);
+  const pagination = usePagination({ initialLimit: 10, initialSortBy: 'nom', initialSortOrder: 'asc' });
   
   const [form] = Form.useForm();
   const [formU] = Form.useForm();
@@ -123,10 +115,13 @@ function RouteComponent() {
   const serviceService = new ServiceService();
 
 
-  const { data: services, isLoading: isLoadingServices } = useQuery({ 
-    queryKey: [QUERY_KEYS.SERVICES], 
-    queryFn: () => serviceService.getAll() 
+  const { data: servicesData, isLoading: isLoadingServices } = useQuery({ 
+    queryKey: [QUERY_KEYS.SERVICES, 'paginated', pagination.params], 
+    queryFn: () => serviceService.getPaginated(pagination.params) 
   });
+  const services = servicesData?.data ?? [];
+  const total = servicesData?.total ?? 0;
+  const totalPages = servicesData?.totalPages ?? 1;
 
   // Fetch tickets for service selection
   const { data: tickets, isLoading: isLoadingTickets } = useQuery<Ticket[]>({
@@ -330,28 +325,8 @@ function RouteComponent() {
     },
   ];
 
-  const filteredServices = useMemo(() => {
-    if (!services) return [];
-    let filtered = services;
-    
-    // Filter by search text
-    if (debouncedSearchText) {
-      const searchLower = debouncedSearchText.toLowerCase();
-      filtered = filtered.filter(service => 
-        service.nom?.toLowerCase().includes(searchLower)
-      );
-    }
-    
-    // Filter by type
-    if (typeFilter) {
-      filtered = filtered.filter(service => service.type === typeFilter);
-    }
-    
-    return filtered;
-  }, [services, debouncedSearchText, typeFilter]);
-
-  const activeServices = filteredServices.filter(s => s.active).length;
-  const inactiveServices = filteredServices.filter(s => !s.active).length;
+  const activeServices = services.filter(s => s.active).length;
+  const inactiveServices = services.filter(s => !s.active).length;
 
   return (
     <div className="controller-page">
@@ -378,20 +353,12 @@ function RouteComponent() {
               </Col>
               <Col flex="none">
                 <Space>
-                  <Input.Search
-                    prefix={<SearchOutlined />}
-                    placeholder="Rechercher..."
-                    allowClear
-                    style={{ width: 250 }}
-                    value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
-                  />
                   <Select
                     placeholder="Type"
                     allowClear
                     style={{ width: 150 }}
-                    value={typeFilter}
-                    onChange={setTypeFilter}
+                    value={pagination.type as TypeService | undefined}
+                    onChange={(value) => pagination.setType(value || undefined)}
                     options={TypeServiceOptions}
                   />
                   {canEdit && <Button 
@@ -412,7 +379,7 @@ function RouteComponent() {
               <Card className="controller-stat-card" size="small">
                 <Statistic
                   title={<span className="text-primary font-medium">Total Services</span>}
-                  value={filteredServices.length}
+                  value={total}
                   prefix={<ShopOutlined />}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
                 />
@@ -440,17 +407,24 @@ function RouteComponent() {
 
           {/* Table */}
           <Card className="controller-panel" title={<span className="text-foreground font-semibold">Liste des Services</span>}>
+            <div className="mb-4">
+              <PaginationControls
+                pagination={pagination}
+                total={total}
+                totalPages={totalPages}
+                pageSizeOptions={[10, 20, 50]}
+                searchPlaceholder="Rechercher un service..."
+                loading={isLoadingServices}
+              />
+            </div>
             <Table
               className="controller-table"
               columns={columns}
-              dataSource={filteredServices}
+              dataSource={services}
               rowKey="_id"
               scroll={{ x: 1200 }}
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                showTotal: (total) => `Total: ${total} services`,
-              }}
+              pagination={false}
+              loading={isLoadingServices}
             />
           </Card>
         </Space>

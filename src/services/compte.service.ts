@@ -38,4 +38,18 @@ export class CompteService extends Service<Compte> {
   async getPaginated(params: PaginationParams): Promise<PaginatedResult<Compte>> {
     return this.api.get(`/${this.ressource}${buildPaginationQuery(params)}`).then((res: any) => res.data);
   }
+
+  /**
+   * Récupère le solde total de tous les comptes.
+   */
+  async getTotalSolde(): Promise<number> {
+    return this.api.get(`/${this.ressource}/total-solde`).then((res: any) => res.data);
+  }
+
+  /**
+   * Compte le nombre total de comptes.
+   */
+  async getCount(): Promise<number> {
+    return this.api.get(`/${this.ressource}/count`).then((res: any) => res.data);
+  }
 }

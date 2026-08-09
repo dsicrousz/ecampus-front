@@ -1,9 +1,17 @@
 import Api from "./Api";
-import { Service } from "./Service";
+import { Service, buildPaginationQuery } from "./Service";
+import type { PaginatedResult, PaginationParams } from "@/types/pagination";
 
 export class PubService extends Service {
   constructor() {
     super(Api, 'pub');
+  }
+
+  /**
+   * Récupère les pubs avec pagination côté backend.
+   */
+  async getPaginated(params: PaginationParams): Promise<PaginatedResult<any>> {
+    return this.api.get(`/${this.ressource}${buildPaginationQuery(params)}`).then((res: any) => res.data);
   }
 
   async create(data: any): Promise<any> {

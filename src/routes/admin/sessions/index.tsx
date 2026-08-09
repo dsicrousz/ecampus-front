@@ -33,6 +33,8 @@ import type { AxiosError } from 'axios';
 import type { Session, SessionStatus, SessionFormValues } from '@/types/session';
 import type { ColumnsType } from 'antd/es/table';
 import { USER_ROLE } from '@/types/user.roles';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationControls } from '@/components/pagination-controls';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -77,12 +79,16 @@ function RouteComponent() {
   const [form] = Form.useForm<SessionFormValues>();
   const queryClient = useQueryClient();
   const sessionService = new SessionService();
+  const pagination = usePagination({ initialLimit: 10, initialSortBy: 'annee', initialSortOrder: 'desc' });
 
-  // Récupérer toutes les sessions
-  const { data: sessions, isLoading } = useQuery<Session[]>({
-    queryKey: ['sessions'],
-    queryFn: () => sessionService.getAll(),
+  // Récupérer les sessions paginées
+  const { data: sessionsData, isLoading } = useQuery({
+    queryKey: ['sessions', 'paginated', pagination.params],
+    queryFn: () => sessionService.getPaginated(pagination.params),
   });
+  const sessions = sessionsData?.data ?? [];
+  const total = sessionsData?.total ?? 0;
+  const totalPages = sessionsData?.totalPages ?? 1;
 
   // Récupérer la session active
   const { data: activeSession } = useQuery<Session>({
@@ -160,9 +166,9 @@ function RouteComponent() {
 
   // Statistiques
   const stats = {
-    total: sessions?.length || 0,
-    active: sessions?.filter((s: Session) => s.isActive).length || 0,
-    terminee: sessions?.filter((s: Session) => getSessionStatus(s) === 'terminee').length || 0,
+    total: total,
+    active: sessions.filter((s: Session) => s.isActive).length,
+    terminee: sessions.filter((s: Session) => getSessionStatus(s) === 'terminee').length,
   };
 
   // Colonnes du tableau
@@ -327,11 +333,15 @@ function RouteComponent() {
               dataSource={sessions}
               rowKey="_id"
               loading={isLoading}
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                showTotal: (total) => `Total: ${total} sessions`,
-              }}
+              pagination={false}
+            />
+            <PaginationControls
+              pagination={pagination}
+              total={total}
+              totalPages={totalPages}
+              pageSizeOptions={[10, 20, 50]}
+              searchPlaceholder="Rechercher une session..."
+              loading={isLoading}
             />
           </Card>
         </Space>

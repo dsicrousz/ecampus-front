@@ -8,6 +8,8 @@ import type { Decade } from "@/types/decade";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from '@/config/dayjs.config'
 import { USER_ROLE } from '@/types/user.roles';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationControls } from '@/components/pagination-controls';
 
 const { Title, Text } = Typography;
 
@@ -19,10 +21,15 @@ export const Route = createFileRoute('/admin/decades/')({
 function RouteComponent() {
   const decadeService = new DecadeService()
 
-  const { data: decades, isLoading } = useQuery({
-    queryKey: ['decades'],
-    queryFn: () => decadeService.getAll()
-  })
+  const pagination = usePagination({ initialLimit: 10, initialSortBy: 'nom', initialSortOrder: 'asc' });
+
+  const { data: decadesData, isLoading } = useQuery({
+    queryKey: ['decades', 'paginated', pagination.params],
+    queryFn: () => decadeService.getPaginated(pagination.params),
+  });
+  const decades = decadesData?.data ?? [];
+  const total = decadesData?.total ?? 0;
+  const totalPages = decadesData?.totalPages ?? 1;
 
   const columns: ColumnsType<Decade> = [
     {
@@ -108,7 +115,7 @@ function RouteComponent() {
                     Total
                   </p>
                   <p className="text-3xl font-bold text-foreground">
-                    {decades?.length || 0}
+                    {total}
                   </p>
                 </div>
               </Col>
@@ -123,12 +130,13 @@ function RouteComponent() {
               dataSource={decades}
               rowKey="_id"
               loading={isLoading}
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: false,
-                showQuickJumper: true,
-                showTotal: (total) => `${total} décades`,
-              }}
+              pagination={false}
+            />
+            <PaginationControls
+              pagination={pagination}
+              totalPages={totalPages}
+              total={total}
+              pageSizeOptions={[10, 20, 50]}
             />
           </Card>
         </Space>

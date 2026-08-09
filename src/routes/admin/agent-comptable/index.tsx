@@ -16,6 +16,7 @@ import { UserService } from '@/services/user.service';
 import { VendeurService } from '@/services/vendeurservice';
 import { authClient } from '@/auth/auth-client';
 import type { TransfertVersement } from '@/types/transfert-versement';
+import { unwrapTransfertResponse, type TransfertResponseWithStats, type FluxStatsDto } from '@/types/pagination';
 import {
   EtatTransfertLabels,
   ETAT_TRANSFERT,
@@ -401,19 +402,20 @@ function RouteComponent() {
   const recouvreursKey = ['recouvreurs'];
   const caissiersPrincipauxKey = ['caissiers-principaux'];
   const soldesVendeursKey = ['soldes-vendeurs'];
-  const allTransfertsKey = ['all-transferts', params];
 
   // Transferts reçus des caissiers principaux
-  const { data: transfertsRecus, isLoading: isLoadingTransfertsRecus } = useQuery<TransfertVersement[]>({
+  const { data: transfertsRecus, isLoading: isLoadingTransfertsRecus } = useQuery<TransfertVersement[] | TransfertResponseWithStats<TransfertVersement>>({
     queryKey: transfertsRecusKey,
-    queryFn: () => transfertVersementService.findByAgentComptable(session!.user.id, params),
+    queryFn: () => transfertVersementService.findByAgentComptable(session!.user.id, params, true),
     enabled: !!session?.user?.id,
   });
 
-  // Tous les transferts pour avoir une vue globale
-  const { data: allTransferts, isLoading: isLoadingAllTransferts } = useQuery<TransfertVersement[]>({
-    queryKey: allTransfertsKey,
-    queryFn: () => transfertVersementService.getAll(params),
+  const { data: transfertsRecusData, stats: transfertsRecusStats } = unwrapTransfertResponse(transfertsRecus ?? []);
+
+  // Statistiques des flux (remplace le chargement de tous les transferts)
+  const { data: fluxStats, isLoading: isLoadingFluxStats } = useQuery<FluxStatsDto>({
+    queryKey: ['transfert-versement', 'stats', 'flux', params],
+    queryFn: () => transfertVersementService.getFluxStats(params),
   });
 
   // Liste des vendeurs
@@ -458,69 +460,35 @@ function RouteComponent() {
 
   // Calcul du solde total reçu
   const transfertsRecusAgentComptable =
-    transfertsRecus?.filter((t) => t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE) || [];
+    transfertsRecusData?.filter((t) => t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE) || [];
 
-  const soldeTotal =
-    transfertsRecusAgentComptable
-      .filter((t) => t.etat === ETAT_TRANSFERT.VALIDE)
-      .reduce((acc, t) => acc + t.montant, 0) || 0;
+  const soldeTotal = transfertsRecusStats?.montantValide ?? 0;
 
   // Filtrer les transferts selon l'état
   const transfertsEnAttenteRecus = transfertsRecusAgentComptable.filter((t) => t.etat === ETAT_TRANSFERT.EN_ATTENTE);
   const transfertsValidesRecus = transfertsRecusAgentComptable.filter((t) => t.etat === ETAT_TRANSFERT.VALIDE);
   const transfertsRefusesRecus = transfertsRecusAgentComptable.filter((t) => t.etat === ETAT_TRANSFERT.REFUSE);
 
-  // Statistiques globales des flux
-  const totalTransfertsVendeurRecouvreur =
-    allTransferts
-      ?.filter(
-        (t) =>
-          t.source_type_acteur === TYPE_ACTEUR.VENDEUR &&
-          t.destination_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
-          t.etat === ETAT_TRANSFERT.VALIDE
-      )
-      .reduce((acc, t) => acc + t.montant, 0) || 0;
-  const countVendeurRecouvreur =
-    allTransferts?.filter(
-      (t) =>
-        t.source_type_acteur === TYPE_ACTEUR.VENDEUR &&
-        t.destination_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
-        t.etat === ETAT_TRANSFERT.VALIDE
-    ).length || 0;
+  // Statistiques globales des flux (depuis le backend)
+  const findFlux = (src: string, dst: string) =>
+    fluxStats?.fluxGlobaux?.find(
+      (f) => f.sourceType === src && f.destinationType === dst
+    );
+  const fluxVR = findFlux(TYPE_ACTEUR.VENDEUR, TYPE_ACTEUR.RECOUVREUR);
+  const totalTransfertsVendeurRecouvreur = fluxVR?.totalMontant ?? 0;
+  const countVendeurRecouvreur = fluxVR?.count ?? 0;
 
-  const totalTransfertsRecouvreurCaissier =
-    allTransferts
-      ?.filter(
-        (t) =>
-          t.source_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
-          t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
-          t.etat === ETAT_TRANSFERT.VALIDE
-      )
-      .reduce((acc, t) => acc + t.montant, 0) || 0;
-  const countRecouvreurCaissier =
-    allTransferts?.filter(
-      (t) =>
-        t.source_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
-        t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
-        t.etat === ETAT_TRANSFERT.VALIDE
-    ).length || 0;
+  const fluxRC = findFlux(TYPE_ACTEUR.RECOUVREUR, TYPE_ACTEUR.CAISSIER_PRINCIPAL);
+  const totalTransfertsRecouvreurCaissier = fluxRC?.totalMontant ?? 0;
+  const countRecouvreurCaissier = fluxRC?.count ?? 0;
 
-  const totalTransfertsCaissierAgent =
-    allTransferts
-      ?.filter(
-        (t) =>
-          t.source_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
-          t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE &&
-          t.etat === ETAT_TRANSFERT.VALIDE
-      )
-      .reduce((acc, t) => acc + t.montant, 0) || 0;
-  const countCaissierAgent =
-    allTransferts?.filter(
-      (t) =>
-        t.source_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
-        t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE &&
-        t.etat === ETAT_TRANSFERT.VALIDE
-    ).length || 0;
+  const fluxCA = findFlux(TYPE_ACTEUR.CAISSIER_PRINCIPAL, TYPE_ACTEUR.AGENT_COMPTABLE);
+  const totalTransfertsCaissierAgent = fluxCA?.totalMontant ?? 0;
+  const countCaissierAgent = fluxCA?.count ?? 0;
+
+  // Helper pour trouver le solde d'un acteur depuis les données backend
+  const findSoldeActeur = (acteurId: string) =>
+    fluxStats?.soldesActeurs?.find((s) => s.acteurId === acteurId);
 
   const isLoading = isLoadingTransfertsRecus || isPendingValider || isPendingRefuser;
 
@@ -601,19 +569,19 @@ function RouteComponent() {
           <>
             <StatCard
               label="En attente"
-              value={transfertsEnAttenteRecus.length}
+              value={transfertsRecusStats?.enAttente ?? 0}
               icon={<Clock className="size-5" />}
               accent="amber"
             />
             <StatCard
               label="Validés"
-              value={transfertsValidesRecus.length}
+              value={transfertsRecusStats?.valides ?? 0}
               icon={<CheckCircle2 className="size-5" />}
               accent="emerald"
             />
             <StatCard
               label="Refusés"
-              value={transfertsRefusesRecus.length}
+              value={transfertsRecusStats?.refuses ?? 0}
               icon={<XCircle className="size-5" />}
               accent="red"
             />
@@ -651,7 +619,7 @@ function RouteComponent() {
         </CardHeader>
         <CardContent className="px-5 py-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {isLoadingAllTransferts ? (
+            {isLoadingFluxStats ? (
               <>
                 <FluxCardSkeleton />
                 <FluxCardSkeleton />
@@ -725,36 +693,12 @@ function RouteComponent() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-0 py-0">
-            {isLoadingRecouvreurs || isLoadingAllTransferts ? (
+            {isLoadingRecouvreurs || isLoadingFluxStats ? (
               <ActeurTableSkeleton />
             ) : recouvreurs?.length ? (
               recouvreurs.map((recouvreur: UserType) => {
-                const getActeurId = (val: any) =>
-                  typeof val === 'object' ? val?._id : val;
-
-                const totalRecu =
-                  allTransferts
-                    ?.filter(
-                      (t) =>
-                        t.source_type_acteur === TYPE_ACTEUR.VENDEUR &&
-                        t.destination_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
-                        t.etat === ETAT_TRANSFERT.VALIDE &&
-                        getActeurId(t.destination_acteur_id) === recouvreur._id
-                    )
-                    .reduce((acc, t) => acc + t.montant, 0) || 0;
-
-                const totalEnvoye =
-                  allTransferts
-                    ?.filter(
-                      (t) =>
-                        t.source_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
-                        t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
-                        t.etat === ETAT_TRANSFERT.VALIDE &&
-                        getActeurId(t.source_acteur_id) === recouvreur._id
-                    )
-                    .reduce((acc, t) => acc + t.montant, 0) || 0;
-
-                const solde = totalRecu - totalEnvoye;
+                const soldeActeur = findSoldeActeur(recouvreur._id);
+                const solde = soldeActeur?.solde ?? 0;
                 return (
                   <ActeurRow
                     key={recouvreur._id}
@@ -780,36 +724,12 @@ function RouteComponent() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-0 py-0">
-            {isLoadingCaissiers || isLoadingAllTransferts ? (
+            {isLoadingCaissiers || isLoadingFluxStats ? (
               <ActeurTableSkeleton />
             ) : caissiersPrincipaux?.length ? (
               caissiersPrincipaux.map((caissier: UserType) => {
-                const getActeurId = (val: any) =>
-                  typeof val === 'object' ? val?._id : val;
-
-                const totalRecu =
-                  allTransferts
-                    ?.filter(
-                      (t) =>
-                        t.source_type_acteur === TYPE_ACTEUR.RECOUVREUR &&
-                        t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
-                        t.etat === ETAT_TRANSFERT.VALIDE &&
-                        getActeurId(t.destination_acteur_id) === caissier._id
-                    )
-                    .reduce((acc, t) => acc + t.montant, 0) || 0;
-
-                const totalEnvoye =
-                  allTransferts
-                    ?.filter(
-                      (t) =>
-                        t.source_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL &&
-                        t.destination_type_acteur === TYPE_ACTEUR.AGENT_COMPTABLE &&
-                        t.etat === ETAT_TRANSFERT.VALIDE &&
-                        getActeurId(t.source_acteur_id) === caissier._id
-                    )
-                    .reduce((acc, t) => acc + t.montant, 0) || 0;
-
-                const solde = totalRecu - totalEnvoye;
+                const soldeActeur = findSoldeActeur(caissier._id);
+                const solde = soldeActeur?.solde ?? 0;
                 return (
                   <ActeurRow
                     key={caissier._id}

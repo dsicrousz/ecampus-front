@@ -1,6 +1,7 @@
 import type { Ticket } from "@/types/ticket";
 import Api from "./Api";
-import { Service } from "./Service";
+import { Service, buildPaginationQuery } from "./Service";
+import type { PaginatedResult, PaginationParams } from "@/types/pagination";
 
 export class TicketService extends Service<Ticket> {
   constructor() {
@@ -21,6 +22,13 @@ export class TicketService extends Service<Ticket> {
 
   async utiliserTicket(data: any): Promise<any> {
     return this.api.post(`/${this.ressource}/utiliser`, data).then((res: any) => res.data);
+  }
+
+  /**
+   * Récupère les tickets avec pagination côté backend.
+   */
+  async getPaginated(params: PaginationParams): Promise<PaginatedResult<Ticket>> {
+    return this.api.get(`/${this.ressource}${buildPaginationQuery(params)}`).then((res: any) => res.data);
   }
 
 }

@@ -21,6 +21,7 @@ import { OperationService } from '@/services/operation.service';
 import { VendeurService } from '@/services/vendeurservice';
 import { TransfertVersementService } from '@/services/transfert-versement.service';
 import { TicketService } from '@/services/ticket.service';
+import { unwrapTransfertResponse, type TransfertResponseWithStats } from '@/types/pagination';
 import { useMemo, useState } from 'react';
 import { validate } from 'uuid';
 import { authClient } from '@/auth/auth-client';
@@ -89,11 +90,12 @@ function RouteComponent() {
     enabled: !!session?.user?.id,
   });
 
-  const { data: mesTransferts } = useQuery<TransfertVersement[]>({
+  const { data: mesTransferts } = useQuery<TransfertVersement[] | TransfertResponseWithStats<TransfertVersement>>({
     queryKey: transfertsKey,
     queryFn: () => transfertVersementService.findByVendeur(session!.user.id),
     enabled: !!session?.user?.id,
   });
+  const { data: mesTransfertsData } = unwrapTransfertResponse(mesTransferts ?? []);
 
   const { data: activeTickets } = useQuery<any[]>({
     queryKey: ticketsKey,
@@ -344,7 +346,7 @@ function RouteComponent() {
                 En attente
               </p>
               <p className="mt-1 text-lg font-black text-orange-600">
-                {mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length || 0}
+                {mesTransfertsData?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length || 0}
               </p>
             </div>
             <div className="rounded-xl bg-muted p-3 text-center">
@@ -352,7 +354,7 @@ function RouteComponent() {
                 Validés
               </p>
               <p className="mt-1 text-lg font-black text-emerald-600">
-                {mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length || 0}
+                {mesTransfertsData?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length || 0}
               </p>
             </div>
             <div className="rounded-xl bg-muted p-3 text-center">
@@ -360,15 +362,15 @@ function RouteComponent() {
                 Total
               </p>
               <p className="mt-1 text-sm font-black text-foreground">
-                {formatMontant(mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0)}
+                {formatMontant(mesTransfertsData?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0)}
               </p>
             </div>
           </div>
 
           {/* Liste des transferts */}
           <div className="space-y-2">
-            {mesTransferts && mesTransferts.length > 0 ? (
-              mesTransferts.slice(0, 5).map((transfert) => (
+            {mesTransfertsData && mesTransfertsData.length > 0 ? (
+              mesTransfertsData.slice(0, 5).map((transfert) => (
                 <div
                   key={transfert._id}
                   className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted p-3"

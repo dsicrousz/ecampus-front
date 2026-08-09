@@ -35,6 +35,7 @@ import type { Compte } from '@/types/compte';
 import type { Operation, TypeOperation } from '@/types/operation';
 import type { TransfertVersement, TransfertVendeurRecouvreurDto } from '@/types/transfert-versement';
 import { EtatTransfertLabels, ETAT_TRANSFERT } from '@/types/transfert-versement';
+import { unwrapTransfertResponse, type TransfertResponseWithStats } from '@/types/pagination';
 import type { User as UserType } from '@/types/user';
 import { formatMontant, getOperationDescription, TypeOperationLabels } from '@/types/operation';
 import { env } from '@/env';
@@ -443,13 +444,14 @@ function RouteComponent() {
     queryFn: () => ticketService.byActive(),
   });
 
-  const { data: mesTransferts, isLoading: isLoadingTransferts } = useQuery<TransfertVersement[]>({
+  const { data: mesTransferts, isLoading: isLoadingTransferts } = useQuery<TransfertVersement[] | TransfertResponseWithStats<TransfertVersement>>({
     queryKey: transfertsKey,
-    queryFn: () => transfertVersementService.findByVendeur(session!.user.id, params),
+    queryFn: () => transfertVersementService.findByVendeur(session!.user.id, params, true),
     enabled: !!session?.user?.id,
   });
 
-  const mesTransfertsFiltres = mesTransferts ?? [];
+  const { data: mesTransfertsData, stats: mesTransfertsStats } = unwrapTransfertResponse(mesTransferts ?? []);
+  const mesTransfertsFiltres = mesTransfertsData;
 
   // ---- Recherche + tri : opérations -----------------------------------------
   const operationColumns: ColumnDef<'date' | 'type' | 'compte' | 'description' | 'montant'>[] = [
@@ -921,19 +923,19 @@ function RouteComponent() {
               <>
                 <StatCard
                   label="Transferts en attente"
-                  value={mesTransfertsFiltres.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length}
+                  value={mesTransfertsStats?.enAttente ?? 0}
                   icon={<Clock className="size-5" />}
                   accent="amber"
                 />
                 <StatCard
                   label="Transferts validés"
-                  value={mesTransfertsFiltres.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length}
+                  value={mesTransfertsStats?.valides ?? 0}
                   icon={<CheckCircle2 className="size-5" />}
                   accent="emerald"
                 />
                 <StatCard
                   label="Montant total transféré"
-                  value={formatMontant(mesTransfertsFiltres.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0))}
+                  value={formatMontant(mesTransfertsStats?.montantValide ?? 0)}
                   icon={<Wallet className="size-5" />}
                   accent="blue"
                 />

@@ -1,23 +1,25 @@
 import Api from "./Api";
 import { Service } from "./Service";
-import type { 
-  TransfertVersement, 
-  TransfertVendeurRecouvreurDto, 
+import type {
+  TransfertVersement,
+  TransfertVendeurRecouvreurDto,
   TransfertRecouvreurCaissierPrincipalDto,
   TransfertCaissierPrincipalAgentComptableDto,
   ValiderTransfertDto,
   TYPE_TRANSFERT
 } from "@/types/transfert-versement";
 import type { DateRangeParams } from "@/hooks/use-time-range-filter";
+import type { FluxStatsDto, TransfertResponseWithStats } from "@/types/pagination";
 
 /**
- * Construit la query string pour les paramètres de période.
+ * Construit la query string pour les paramètres de période + withStats.
  */
-function buildDateQuery(params?: DateRangeParams): string {
-  if (!params) return '';
+function buildDateQuery(params?: DateRangeParams, withStats?: boolean): string {
+  if (!params && !withStats) return '';
   const parts: string[] = [];
-  if (params.dateDebut) parts.push(`dateDebut=${encodeURIComponent(params.dateDebut)}`);
-  if (params.dateFin) parts.push(`dateFin=${encodeURIComponent(params.dateFin)}`);
+  if (params?.dateDebut) parts.push(`dateDebut=${encodeURIComponent(params.dateDebut)}`);
+  if (params?.dateFin) parts.push(`dateFin=${encodeURIComponent(params.dateFin)}`);
+  if (withStats) parts.push(`withStats=true`);
   return parts.length > 0 ? `?${parts.join('&')}` : '';
 }
 
@@ -62,20 +64,20 @@ export class TransfertVersementService extends Service {
     return this.api.get(`/${this.ressource}/type/${typeTransfert}${buildDateQuery(dateRange)}`).then((res) => res.data);
   }
 
-  async findByVendeur(vendeurId: string, dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
-    return this.api.get(`/${this.ressource}/vendeur/${vendeurId}${buildDateQuery(dateRange)}`).then((res) => res.data);
+  async findByVendeur(vendeurId: string, dateRange?: DateRangeParams, withStats?: boolean): Promise<TransfertVersement[] | TransfertResponseWithStats<TransfertVersement>> {
+    return this.api.get(`/${this.ressource}/vendeur/${vendeurId}${buildDateQuery(dateRange, withStats)}`).then((res) => res.data);
   }
 
-  async findByRecouvreur(recouvreurId: string, dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
-    return this.api.get(`/${this.ressource}/recouvreur/${recouvreurId}${buildDateQuery(dateRange)}`).then((res) => res.data);
+  async findByRecouvreur(recouvreurId: string, dateRange?: DateRangeParams, withStats?: boolean): Promise<TransfertVersement[] | TransfertResponseWithStats<TransfertVersement>> {
+    return this.api.get(`/${this.ressource}/recouvreur/${recouvreurId}${buildDateQuery(dateRange, withStats)}`).then((res) => res.data);
   }
 
-  async findByCaissierPrincipal(caissierPrincipalId: string, dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
-    return this.api.get(`/${this.ressource}/caissier-principal/${caissierPrincipalId}${buildDateQuery(dateRange)}`).then((res) => res.data);
+  async findByCaissierPrincipal(caissierPrincipalId: string, dateRange?: DateRangeParams, withStats?: boolean): Promise<TransfertVersement[] | TransfertResponseWithStats<TransfertVersement>> {
+    return this.api.get(`/${this.ressource}/caissier-principal/${caissierPrincipalId}${buildDateQuery(dateRange, withStats)}`).then((res) => res.data);
   }
 
-  async findByAgentComptable(agentComptableId: string, dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
-    return this.api.get(`/${this.ressource}/agent-comptable/${agentComptableId}${buildDateQuery(dateRange)}`).then((res) => res.data);
+  async findByAgentComptable(agentComptableId: string, dateRange?: DateRangeParams, withStats?: boolean): Promise<TransfertVersement[] | TransfertResponseWithStats<TransfertVersement>> {
+    return this.api.get(`/${this.ressource}/agent-comptable/${agentComptableId}${buildDateQuery(dateRange, withStats)}`).then((res) => res.data);
   }
 
   async findBySession(sessionId: string): Promise<TransfertVersement[]> {
@@ -84,5 +86,14 @@ export class TransfertVersementService extends Service {
 
   async getAll(dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
     return this.api.get(`/${this.ressource}${buildDateQuery(dateRange)}`).then((res) => res.data);
+  }
+
+  /**
+   * Récupère les statistiques des flux financiers (totaux par flux + soldes par acteur).
+   * GET /transfert-versement/stats/flux?dateDebut=...&dateFin=...
+   * Le backend filtre automatiquement sur etat = VALIDE.
+   */
+  async getFluxStats(dateRange?: DateRangeParams): Promise<FluxStatsDto> {
+    return this.api.get(`/${this.ressource}/stats/flux${buildDateQuery(dateRange)}`).then((res: any) => res.data);
   }
 }

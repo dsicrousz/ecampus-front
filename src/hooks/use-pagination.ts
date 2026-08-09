@@ -14,6 +14,10 @@ export interface UsePaginationOptions {
   /** Tri initial. */
   initialSortBy?: string;
   initialSortOrder?: SortOrder;
+  /** Filtre par type (pour /service). */
+  initialType?: string;
+  /** Filtre par état actif/inactif. */
+  initialActive?: boolean;
 }
 
 export interface UsePaginationReturn {
@@ -23,12 +27,16 @@ export interface UsePaginationReturn {
   debouncedSearch: string;
   sortBy: string | undefined;
   sortOrder: SortOrder;
+  type: string | undefined;
+  active: boolean | undefined;
   params: PaginationParams;
   setPage: (page: number) => void;
   setLimit: (limit: number) => void;
   setSearch: (search: string) => void;
   setSort: (sortBy: string, sortOrder?: SortOrder) => void;
   toggleSort: (sortBy: string) => void;
+  setType: (type: string | undefined) => void;
+  setActive: (active: boolean | undefined) => void;
   resetPage: () => void;
 }
 
@@ -50,6 +58,8 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     debounceMs = 300,
     initialSortBy,
     initialSortOrder = 'asc',
+    initialType,
+    initialActive,
   } = options;
 
   const [page, setPage] = useState(initialPage);
@@ -58,16 +68,26 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortBy, setSortBy] = useState<string | undefined>(initialSortBy);
   const [sortOrder, setSortOrder] = useState<SortOrder>(initialSortOrder);
+  const [type, setTypeState] = useState<string | undefined>(initialType);
+  const [active, setActiveState] = useState<boolean | undefined>(initialActive);
 
   useDebounce(() => setDebouncedSearch(search), debounceMs, [search]);
 
-  // Reset à la page 1 quand la recherche ou le limit change
+  // Reset à la page 1 quand la recherche, le limit, le type ou active change
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, limit]);
+  }, [debouncedSearch, limit, type, active]);
 
   const setLimit = useCallback((newLimit: number) => {
     setLimitState(newLimit);
+  }, []);
+
+  const setType = useCallback((newType: string | undefined) => {
+    setTypeState(newType);
+  }, []);
+
+  const setActive = useCallback((newActive: boolean | undefined) => {
+    setActiveState(newActive);
   }, []);
 
   const setSort = useCallback((newSortBy: string, newSortOrder?: SortOrder) => {
@@ -104,8 +124,10 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
       p.sortBy = sortBy;
       p.sortOrder = sortOrder;
     }
+    if (type) p.type = type;
+    if (active != null) p.active = active;
     return p;
-  }, [page, limit, debouncedSearch, sortBy, sortOrder]);
+  }, [page, limit, debouncedSearch, sortBy, sortOrder, type, active]);
 
   return {
     page,
@@ -114,12 +136,16 @@ export function usePagination(options: UsePaginationOptions = {}): UsePagination
     debouncedSearch,
     sortBy,
     sortOrder,
+    type,
+    active,
     params,
     setPage,
     setLimit,
     setSearch,
     setSort,
     toggleSort,
+    setType,
+    setActive,
     resetPage,
   };
 }

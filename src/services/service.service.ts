@@ -1,6 +1,7 @@
 import type { Service as ServiceType } from "@/types/service";
 import Api from "./Api";
-import { Service } from "./Service";
+import { Service, buildPaginationQuery } from "./Service";
+import type { PaginatedResult, PaginationParams } from "@/types/pagination";
 
 export class ServiceService extends Service<ServiceType>{
 constructor(){
@@ -21,6 +22,13 @@ async byGerant(gerantId:string):Promise<ServiceType[]> {
 
   async getByType(type:string):Promise<ServiceType[]> {
     return this.api.get(`/${this.ressource}/bytype/${type}`).then(res => res.data);
+  }
+
+  /**
+   * Récupère les services avec pagination côté backend.
+   */
+  async getPaginated(params: PaginationParams): Promise<PaginatedResult<ServiceType>> {
+    return this.api.get(`/${this.ressource}${buildPaginationQuery(params)}`).then((res: any) => res.data);
   }
 
 }

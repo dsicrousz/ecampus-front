@@ -1,11 +1,19 @@
-import { Service } from "./Service";
+import { Service, buildPaginationQuery } from "./Service";
 import Api from "./Api";
+import type { PaginatedResult, PaginationParams } from "@/types/pagination";
 /**
  * Service pour gérer les sessions académiques
  */
 export class SessionService extends Service {
     constructor() {
         super(Api, 'session');
+    }
+
+    /**
+     * Récupère les sessions avec pagination côté backend.
+     */
+    async getPaginated(params: PaginationParams): Promise<PaginatedResult<any>> {
+        return this.api.get(`/${this.ressource}${buildPaginationQuery(params)}`).then((res: any) => res.data);
     }
 
     /**

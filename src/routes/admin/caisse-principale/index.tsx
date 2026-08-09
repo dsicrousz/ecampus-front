@@ -23,6 +23,7 @@ import type {
   TransfertVersement,
   TransfertCaissierPrincipalAgentComptableDto,
 } from '@/types/transfert-versement';
+import { unwrapTransfertResponse, type TransfertResponseWithStats } from '@/types/pagination';
 import {
   EtatTransfertLabels,
   ETAT_TRANSFERT,
@@ -476,11 +477,13 @@ function RouteComponent() {
   const soldesVendeursKey = ['soldes-vendeurs'];
 
   // Transferts reçus des recouvreurs (en attente de validation)
-  const { data: transfertsRecus, isLoading: isLoadingTransfertsRecus } = useQuery<TransfertVersement[]>({
+  const { data: transfertsRecus, isLoading: isLoadingTransfertsRecus } = useQuery<TransfertVersement[] | TransfertResponseWithStats<TransfertVersement>>({
     queryKey: transfertsRecusKey,
-    queryFn: () => transfertVersementService.findByCaissierPrincipal(session!.user.id, params),
+    queryFn: () => transfertVersementService.findByCaissierPrincipal(session!.user.id, params, true),
     enabled: !!session?.user?.id,
   });
+
+  const { data: transfertsRecusData, stats: transfertsRecusStats } = unwrapTransfertResponse(transfertsRecus ?? []);
 
   // Transferts envoyés vers l'agent comptable
   const { data: transfertsEnvoyes, isLoading: isLoadingTransfertsEnvoyes } = useQuery<TransfertVersement[]>({
@@ -494,8 +497,6 @@ function RouteComponent() {
     queryFn: () => caissierService.getSolde(session!.user.id),
     enabled: !!session?.user?.id,
   });
-
-  console.log(soldeCaissierPrincipal);
 
   // Liste des agents comptables
   const { data: agentsComptables, isLoading: isLoadingAgents } = useQuery<UserType[]>({
@@ -513,6 +514,12 @@ function RouteComponent() {
   const { data: recouvreurs, isLoading: isLoadingRecouvreurs } = useQuery<UserType[]>({
     queryKey: recouvreursKey,
     queryFn: () => userService.byRole(USER_ROLE.RECOUVREUR),
+  });
+
+  // Soldes des recouvreurs (batch — remplace les R requêtes individuelles)
+  const { data: soldesRecouvreurs, isLoading: isLoadingSoldesRecouvreurs } = useQuery({
+    queryKey: ['solde-recouvreur', 'soldes'],
+    queryFn: () => recouvreurService.getAllSoldes(),
   });
 
   // Soldes des vendeurs
@@ -553,7 +560,7 @@ function RouteComponent() {
 
   // Calcul du solde disponible (transferts validés - transferts envoyés validés)
   const transfertsRecusRecouvreurs =
-    transfertsRecus?.filter(
+    transfertsRecusData?.filter(
       (t) => t.destination_type_acteur === TYPE_ACTEUR.CAISSIER_PRINCIPAL
     ) || [];
   const mesTransfertsEnvoyes =
@@ -652,7 +659,6 @@ function RouteComponent() {
     processed: processedEnvoyes,
   } = useTableSearchSort(transfertsEnvoyesAffiches, envoyesColumns);
 
-  const montantTotalRecu = transfertsValidesRecus.reduce((acc, t) => acc + t.montant, 0);
   const montantTotalTransfere = transfertsValidesEnvoyes.reduce((acc, t) => acc + t.montant, 0);
 
   return (
@@ -709,25 +715,25 @@ function RouteComponent() {
           <>
             <StatCard
               label="En attente"
-              value={transfertsEnAttenteRecus.length}
+              value={transfertsRecusStats?.enAttente ?? 0}
               icon={<Clock className="size-5" />}
               accent="amber"
             />
             <StatCard
               label="Validés"
-              value={transfertsValidesRecus.length}
+              value={transfertsRecusStats?.valides ?? 0}
               icon={<CheckCircle2 className="size-5" />}
               accent="emerald"
             />
             <StatCard
               label="Refusés"
-              value={transfertsRefusesRecus.length}
+              value={transfertsRecusStats?.refuses ?? 0}
               icon={<XCircle className="size-5" />}
               accent="red"
             />
             <StatCard
               label="Montant total reçu"
-              value={formatMontant(montantTotalRecu)}
+              value={formatMontant(transfertsRecusStats?.montantValide ?? 0)}
               icon={<Wallet className="size-5" />}
               accent="blue"
             />
@@ -792,17 +798,22 @@ function RouteComponent() {
             </CardTitle>
           </CardHeader>
           <CardContent className="px-0 py-0">
-            {isLoadingRecouvreurs ? (
+            {isLoadingRecouvreurs || isLoadingSoldesRecouvreurs ? (
               <ActeurTableSkeleton />
             ) : recouvreurs?.length ? (
-              recouvreurs.map((recouvreur: UserType) => (
-                <SoldeRecouvreurCell
-                  key={recouvreur._id}
-                  name={recouvreur.name || ''}
-                  recouvreurId={recouvreur._id}
-                  recouvreurService={recouvreurService}
-                />
-              ))
+              recouvreurs.map((recouvreur: UserType) => {
+                const soldeData = soldesRecouvreurs?.find((s: any) => s.recouvreurId === recouvreur._id);
+                const solde = soldeData?.solde ?? 0;
+                return (
+                  <ActeurRow
+                    key={recouvreur._id}
+                    name={recouvreur.name || ''}
+                    amount={solde}
+                    amountLabel="Solde"
+                    positive={solde > 0}
+                  />
+                );
+              })
             ) : (
               <EmptyState message="Aucun recouvreur" />
             )}
@@ -825,21 +836,21 @@ function RouteComponent() {
               onClick={() => setActiveTabRecus('en_attente')}
               icon={<Clock className="size-4" />}
               label="En attente"
-              count={transfertsEnAttenteRecus.length}
+              count={transfertsRecusStats?.enAttente ?? 0}
             />
             <TabButton
               active={activeTabRecus === 'valides'}
               onClick={() => setActiveTabRecus('valides')}
               icon={<CheckCircle2 className="size-4" />}
               label="Validés"
-              count={transfertsValidesRecus.length}
+              count={transfertsRecusStats?.valides ?? 0}
             />
             <TabButton
               active={activeTabRecus === 'refuses'}
               onClick={() => setActiveTabRecus('refuses')}
               icon={<XCircle className="size-4" />}
               label="Refusés"
-              count={transfertsRefusesRecus.length}
+              count={transfertsRecusStats?.refuses ?? 0}
             />
           </div>
 
@@ -1135,52 +1146,6 @@ function RouteComponent() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
-    </div>
-  );
-}
-
-// ---- SoldeRecouvreurCell (refondu) ------------------------------------------
-
-function SoldeRecouvreurCell({
-  name,
-  recouvreurId,
-  recouvreurService,
-}: {
-  name: string;
-  recouvreurId: string;
-  recouvreurService: RecouvreurService;
-}) {
-  const { data, isLoading } = useQuery({
-    queryKey: ['solde-recouvreur', recouvreurId],
-    queryFn: () => recouvreurService.getSolde(recouvreurId),
-    enabled: !!recouvreurId,
-  });
-
-  return (
-    <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3 last:border-0 transition-colors hover:bg-muted/40">
-      <div className="flex items-center gap-2.5 min-w-0">
-        <Avatar className="size-8 border border-border">
-          <AvatarFallback className="text-xs font-semibold">
-            {name?.[0]?.toUpperCase() || '?'}
-          </AvatarFallback>
-        </Avatar>
-        <span className="truncate text-sm font-medium text-foreground">{name}</span>
-      </div>
-      <div className="shrink-0 text-right">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Solde estimé</p>
-        {isLoading ? (
-          <Skeleton className="ml-auto h-4 w-20" />
-        ) : (
-          <p
-            className={cn(
-              'text-sm font-bold tabular-nums',
-              data && data > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
-            )}
-          >
-            {formatMontant(data || 0)}
-          </p>
-        )}
-      </div>
     </div>
   );
 }

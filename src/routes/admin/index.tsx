@@ -41,6 +41,7 @@ import { useSession } from '@/auth/auth-client'
 import { USER_ROLE } from '@/types/user.roles'
 import { QUERY_KEYS } from '@/constants'
 import { requireRole } from '@/lib/route-protection'
+import type { DashboardStatsDto } from '@/types/pagination'
 
 const { RangePicker } = DatePicker
 
@@ -304,8 +305,8 @@ function RouteComponent() {
     }
   }, [activeSession, timeFilter])
 
-  // Récupérer toutes les opérations
-  const { data: operationsData, isLoading: isLoadingOperations, refetch: refetchOperations } = useQuery({
+  // Récupérer toutes les opérations (pour le store temps réel WebSocket)
+  const { data: operationsData, refetch: refetchOperations } = useQuery({
     queryKey: [QUERY_KEYS.OPERATIONS, timeFilter],
     queryFn: () => timeFilter != null
       ? operationService.byPeriod(timeFilter[0].toISOString(), timeFilter[1].toISOString())
@@ -319,71 +320,38 @@ function RouteComponent() {
     }
   }, [operationsData])
 
-  // Récupérer tous les comptes
-  const { data: comptes, isLoading: isLoadingComptes } = useQuery({
-    queryKey: [QUERY_KEYS.COMPTES],
-    queryFn: () => compteService.getAll(),
+  // Récupérer le solde total et le nombre de comptes (endpoints dédiés)
+  const { data: soldeGlobal, isLoading: isLoadingSolde } = useQuery({
+    queryKey: ['compte', 'total-solde'],
+    queryFn: () => compteService.getTotalSolde(),
   })
 
-  const isLoading = isLoadingOperations || isLoadingComptes || isLoadingSession
+  const { data: compteCount, isLoading: isLoadingCompteCount } = useQuery({
+    queryKey: ['compte', 'count'],
+    queryFn: () => compteService.getCount(),
+  })
 
-  // Séparer les opérations par type
-  const recharges = ops?.filter((op: any) => op.type === 'RECHARGE') || []
-  const utilisations = ops?.filter((op: any) => op.type === 'UTILISATION') || []
-  const transferts = ops?.filter((op: any) => op.type === 'TRANSFERT') || []
+  // Récupérer les statistiques agrégées du dashboard (backend)
+  const dashboardParams = timeFilter != null
+    ? { dateDebut: timeFilter[0].toISOString(), dateFin: timeFilter[1].toISOString() }
+    : undefined;
+  const { data: dashboardStats, isLoading: isLoadingDashboard } = useQuery<DashboardStatsDto>({
+    queryKey: ['operation', 'stats', 'dashboard', dashboardParams],
+    queryFn: () => operationService.getDashboardStats(dashboardParams),
+  })
 
-  // Grouper les utilisations par service puis par ticket
-  const utilisationsParService = utilisations.reduce((acc: any, op: Operation) => {
-    const serviceId = op.serviceSnapshot?._id || 'sans-service'
-    const serviceNom = op.serviceSnapshot?.nom || 'Sans service'
-    const serviceType = op.serviceSnapshot?.type || 'autre'
+  const isLoading = isLoadingDashboard || isLoadingSolde || isLoadingCompteCount || isLoadingSession
 
-    const ticketId = op.ticketSnapshot?._id || 'sans-ticket'
-    const ticketNom = op.ticketSnapshot?.nom || 'Sans ticket'
-    const ticketPrix = op.ticketSnapshot?.prix || 0
+  // Données agrégées depuis le backend (déjà triées par le backend)
+  const servicesAvecOperations = dashboardStats?.services ?? []
 
-    if (!acc[serviceId]) {
-      acc[serviceId] = {
-        serviceId,
-        serviceNom,
-        serviceType,
-        tickets: {},
-        totalOperations: 0,
-        totalMontant: 0
-      }
-    }
-
-    if (!acc[serviceId].tickets[ticketId]) {
-      acc[serviceId].tickets[ticketId] = {
-        ticketId,
-        ticketNom,
-        ticketPrix,
-        operations: [],
-        total: 0,
-        count: 0
-      }
-    }
-
-    acc[serviceId].tickets[ticketId].operations.push(op)
-    acc[serviceId].tickets[ticketId].total += op.montant || 0
-    acc[serviceId].tickets[ticketId].count += 1
-    acc[serviceId].totalOperations += 1
-    acc[serviceId].totalMontant += op.montant || 0
-
-    return acc
-  }, {})
-
-  const servicesAvecOperations = Object.values(utilisationsParService)
-    .map((service: any) => ({
-      ...service,
-      tickets: Object.values(service.tickets).sort((a: any, b: any) => b.count - a.count)
-    }))
-    .sort((a: any, b: any) => b.totalOperations - a.totalOperations)
-
-  // Calculer le solde global
-  const soldeGlobal = comptes?.reduce((total: number, compte: any) => {
-    return total + (compte.solde || 0)
-  }, 0) || 0
+  // Dernières opérations par ticket (filtrées depuis le store temps réel)
+  const getRecentOpsForTicket = (ticketId: string): Operation[] => {
+    if (!ops) return [];
+    return ops
+      .filter((op: any) => op.type === 'UTILISATION' && (op.ticketSnapshot?._id || 'sans-ticket') === ticketId)
+      .slice(0, 5);
+  }
 
   useEffect(() => {
     refetchOperations()
@@ -486,29 +454,29 @@ function RouteComponent() {
           <>
             <StatCard
               label="Solde Global"
-              value={formatMontant(soldeGlobal)}
-              subtitle={`${comptes?.length || 0} comptes`}
+              value={formatMontant(soldeGlobal || 0)}
+              subtitle={`${compteCount ?? 0} compte${(compteCount ?? 0) > 1 ? 's' : ''}`}
               icon={<Wallet className="size-5" />}
               accent="blue"
             />
             <StatCard
               label="Total Recharges"
-              value={recharges.length}
-              subtitle={formatMontant(recharges.reduce((total: number, op: any) => total + (op.montant || 0), 0))}
+              value={dashboardStats?.totalRecharges ?? 0}
+              subtitle={formatMontant(dashboardStats?.montantRecharges ?? 0)}
               icon={<ArrowUpCircle className="size-5" />}
               accent="emerald"
             />
             <StatCard
               label="Total Utilisations"
-              value={utilisations.length}
-              subtitle={formatMontant(utilisations.reduce((total: number, op: any) => total + (op.montant || 0), 0))}
+              value={dashboardStats?.totalUtilisations ?? 0}
+              subtitle={formatMontant(dashboardStats?.montantUtilisations ?? 0)}
               icon={<ArrowDownCircle className="size-5" />}
               accent="amber"
             />
             <StatCard
               label="Total Transferts"
-              value={transferts.length}
-              subtitle={formatMontant(transferts.reduce((total: number, op: any) => total + (op.montant || 0), 0))}
+              value={dashboardStats?.totalTransferts ?? 0}
+              subtitle={formatMontant(dashboardStats?.montantTransferts ?? 0)}
               icon={<ArrowLeftRight className="size-5" />}
               accent="violet"
             />
@@ -632,14 +600,16 @@ function RouteComponent() {
                             </div>
 
                             {/* Dernières opérations (aperçu) */}
-                            {ticketData.operations && ticketData.operations.length > 0 && (
+                            {(() => {
+                              const recentOps = getRecentOpsForTicket(ticketData.ticketId);
+                              return recentOps.length > 0 ? (
                               <div className="pt-2 border-t border-border/60">
                                 <p className="mb-2 text-xs font-medium text-muted-foreground">
                                   Dernières opérations
                                 </p>
                                 <div className="relative h-[120px] overflow-hidden">
                                   <AnimatedList delay={1500}>
-                                    {ticketData.operations.slice(0, 5).map((op: Operation) => (
+                                    {recentOps.map((op: Operation) => (
                                       <div
                                         key={op._id}
                                         className="flex items-center gap-2 p-2 mb-1 rounded-lg bg-muted/60 border border-border/60"
@@ -666,7 +636,8 @@ function RouteComponent() {
                                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-card to-transparent" />
                                 </div>
                               </div>
-                            )}
+                            ) : null;
+                            })()}
                           </div>
                         </div>
                       )
@@ -677,7 +648,7 @@ function RouteComponent() {
             )
           })}
         </div>
-      ) : ops && ops.length === 0 ? (
+      ) : dashboardStats && dashboardStats.totalUtilisations === 0 ? (
         <Card className="border-dashed border-border/60 shadow-none">
           <CardContent className="flex flex-col items-center justify-center py-16 text-center">
             <div className="flex size-14 items-center justify-center rounded-full bg-muted">
