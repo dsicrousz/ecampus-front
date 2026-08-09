@@ -1,6 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { requireRole } from '@/lib/route-protection';
-import { DatePicker } from 'antd';
+import { DateRangeFilter } from '@/components/date-range-filter';
+import { useTimeRangeFilter } from '@/hooks/use-time-range-filter';
+import { useTableSearchSort, type ColumnDef } from '@/hooks/use-table-search-sort';
+import { SortableHeader, TableToolbar } from '@/components/table-controls';
 import {
   Wallet,
   QrCode,
@@ -11,7 +14,6 @@ import {
   Plus,
   Send,
   ArrowLeftRight,
-  Search,
   Loader2,
   Inbox,
   Clock,
@@ -36,7 +38,6 @@ import { EtatTransfertLabels, ETAT_TRANSFERT } from '@/types/transfert-versement
 import type { User as UserType } from '@/types/user';
 import { formatMontant, getOperationDescription, TypeOperationLabels } from '@/types/operation';
 import { env } from '@/env';
-import type { Dayjs } from 'dayjs';
 import { useSymbologyScanner } from '@use-symbology-scanner/react';
 import { USER_ROLE } from '@/types/user.roles';
 import { QUERY_KEYS, queryKeys } from '@/constants';
@@ -45,12 +46,9 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 (pdfMake as any).vfs = font;
-
-const { RangePicker } = DatePicker;
 
 interface RechargeData {
   compte: string;
@@ -367,8 +365,7 @@ function RouteComponent() {
   const { data: session } = authClient.useSession();
   const [openedRecharge, setOpenedRecharge] = useState(false);
   const [montantRecharge, setMontantRecharge] = useState<number>(0);
-  const [opSearch, setOpSearch] = useState('');
-  const [timeFilter, setTimeFilter] = useState<[Dayjs, Dayjs]>([dayjs().startOf('month'), dayjs().endOf('month')]);
+  const { range: timeFilter, setRange: setTimeFilter, params } = useTimeRangeFilter();
   const [qr, setQr] = useState<string>();
   const [openedTransfert, setOpenedTransfert] = useState(false);
   const [montantTransfert, setMontantTransfert] = useState<number>(0);
@@ -407,9 +404,9 @@ function RouteComponent() {
   const userService = useMemo(() => new UserService(), []);
   const ticketService = useMemo(() => new TicketService(), []);
 
-  const operationKey = ['operations', session?.user?.id];
+  const operationKey = ['operations', session?.user?.id, params];
   const soldeVendeurKey = ['solde', session?.user?.id];
-  const transfertsKey = ['transferts-vendeur', session?.user?.id];
+  const transfertsKey = ['transferts-vendeur', session?.user?.id, params];
   const recouvreursKey = ['recouvreurs'];
   const ticketsKey = ['tickets', 'active'];
   const compteKey = qr
@@ -418,15 +415,11 @@ function RouteComponent() {
 
   const { data: allOperations, isLoading: isLoadingOperations } = useQuery<Operation[]>({
     queryKey: operationKey,
-    queryFn: () => operationService.byAgent(session!.user.id),
+    queryFn: () => operationService.byAgent(session!.user.id, params),
     enabled: !!session?.user?.id,
   });
 
-  const operationsData = allOperations?.filter((op: Operation) => {
-    if (!timeFilter) return true;
-    const opDate = dayjs(op.createdAt);
-    return opDate.isAfter(timeFilter[0]) && opDate.isBefore(timeFilter[1]);
-  }) || [];
+  const operationsData = allOperations ?? [];
 
   const { data: soldeData, isLoading: isLoadingSolde } = useQuery<number>({
     queryKey: soldeVendeurKey,
@@ -452,9 +445,86 @@ function RouteComponent() {
 
   const { data: mesTransferts, isLoading: isLoadingTransferts } = useQuery<TransfertVersement[]>({
     queryKey: transfertsKey,
-    queryFn: () => transfertVersementService.findByVendeur(session!.user.id),
+    queryFn: () => transfertVersementService.findByVendeur(session!.user.id, params),
     enabled: !!session?.user?.id,
   });
+
+  const mesTransfertsFiltres = mesTransferts ?? [];
+
+  // ---- Recherche + tri : opérations -----------------------------------------
+  const operationColumns: ColumnDef<'date' | 'type' | 'compte' | 'description' | 'montant'>[] = [
+    {
+      key: 'date',
+      label: 'Date',
+      accessor: (op: Operation) => op.createdAt ? dayjs(op.createdAt).valueOf() : null,
+    },
+    {
+      key: 'type',
+      label: 'Type',
+      accessor: (op: Operation) => op.type,
+    },
+    {
+      key: 'compte',
+      label: 'Compte',
+      accessor: (op: Operation) =>
+        `${op.compte?.etudiant?.prenom ?? ''} ${op.compte?.etudiant?.nom ?? ''} ${op.compte?.etudiant?.ncs ?? ''}`.trim(),
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      accessor: (op: Operation) => getOperationDescription(op),
+      sortable: false,
+    },
+    {
+      key: 'montant',
+      label: 'Montant',
+      accessor: (op: Operation) => op.montant,
+    },
+  ];
+  const {
+    search: opSearch,
+    setSearch: setOpSearch,
+    sort: opSort,
+    toggleSort: toggleOpSort,
+    processed: processedOperations,
+  } = useTableSearchSort(operationsData, operationColumns);
+
+  // ---- Recherche + tri : transferts -----------------------------------------
+  const transfertColumns: ColumnDef<'date' | 'recouvreur' | 'montant' | 'note' | 'statut'>[] = [
+    {
+      key: 'date',
+      label: 'Date',
+      accessor: (t: TransfertVersement) => t.createdAt ? dayjs(t.createdAt).valueOf() : null,
+    },
+    {
+      key: 'recouvreur',
+      label: 'Recouvreur',
+      accessor: (t: TransfertVersement) => t.destination_acteur_name ?? '',
+    },
+    {
+      key: 'montant',
+      label: 'Montant',
+      accessor: (t: TransfertVersement) => t.montant,
+    },
+    {
+      key: 'note',
+      label: 'Note',
+      accessor: (t: TransfertVersement) => t.note ?? '',
+      sortable: false,
+    },
+    {
+      key: 'statut',
+      label: 'Statut',
+      accessor: (t: TransfertVersement) => EtatTransfertLabels[t.etat] ?? t.etat,
+    },
+  ];
+  const {
+    search: transfertSearch,
+    setSearch: setTransfertSearch,
+    sort: transfertSort,
+    toggleSort: toggleTransfertSort,
+    processed: processedTransferts,
+  } = useTableSearchSort(mesTransfertsFiltres, transfertColumns);
 
   const { mutate: createTransfert, isPending: isPendingTransfert } = useMutation({
     mutationFn: (data: TransfertVendeurRecouvreurDto) => transfertVersementService.createVendeurRecouvreur(data),
@@ -636,15 +706,6 @@ function RouteComponent() {
     pdfMake.createPdf(docDefinition).open();
   };
 
-  const filteredOperations = operationsData.filter((op: Operation) => {
-    if (!opSearch) return true;
-    const dateStr = dayjs(op.createdAt).format('DD/MM/YYYY HH:mm');
-    return dateStr.toLowerCase().includes(opSearch.toLowerCase()) ||
-      (op.type || '').toLowerCase().includes(opSearch.toLowerCase()) ||
-      getOperationDescription(op).toLowerCase().includes(opSearch.toLowerCase()) ||
-      `${op.compte?.etudiant?.prenom} ${op.compte?.etudiant?.nom} ${op.compte?.etudiant?.ncs || ''}`.toLowerCase().includes(opSearch.toLowerCase());
-  });
-
   return (
     <div className="space-y-6">
       {/* Hero Header + Solde vendeur */}
@@ -814,6 +875,21 @@ function RouteComponent() {
         )}
       </div>
 
+      {/* Filtre par intervalle de temps (opérations + transferts) */}
+      <Card className="border-border/60 shadow-none">
+        <CardContent className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              Filtrer par intervalle de temps
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Par défaut : mois en cours. S'applique aux opérations et transferts.
+            </p>
+          </div>
+          <DateRangeFilter value={timeFilter} onChange={setTimeFilter} />
+        </CardContent>
+      </Card>
+
       {/* Section Transfert vers Recouvreur */}
       <Card className="border-border/60 shadow-none">
         <CardHeader className="border-b border-border/60 px-5 py-4">
@@ -845,19 +921,19 @@ function RouteComponent() {
               <>
                 <StatCard
                   label="Transferts en attente"
-                  value={mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length || 0}
+                  value={mesTransfertsFiltres.filter(t => t.etat === ETAT_TRANSFERT.EN_ATTENTE).length}
                   icon={<Clock className="size-5" />}
                   accent="amber"
                 />
                 <StatCard
                   label="Transferts validés"
-                  value={mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length || 0}
+                  value={mesTransfertsFiltres.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).length}
                   icon={<CheckCircle2 className="size-5" />}
                   accent="emerald"
                 />
                 <StatCard
                   label="Montant total transféré"
-                  value={formatMontant(mesTransferts?.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0) || 0)}
+                  value={formatMontant(mesTransfertsFiltres.filter(t => t.etat === ETAT_TRANSFERT.VALIDE).reduce((acc, t) => acc + t.montant, 0))}
                   icon={<Wallet className="size-5" />}
                   accent="blue"
                 />
@@ -867,26 +943,35 @@ function RouteComponent() {
 
           <Separator className="my-5" />
 
+          {/* Recherche */}
+          <div className="mb-4">
+            <TableToolbar
+              value={transfertSearch}
+              onChange={setTransfertSearch}
+              placeholder="Rechercher un transfert..."
+            />
+          </div>
+
           {/* Table header (desktop only) */}
-          <div className="hidden grid-cols-[1fr_1.5fr_1fr_1fr_0.8fr] gap-4 border-b border-border/60 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
-            <span>Date</span>
-            <span>Recouvreur</span>
-            <span>Montant</span>
-            <span>Note</span>
-            <span>Statut</span>
+          <div className="hidden grid-cols-[1fr_1.5fr_1fr_1fr_0.8fr] gap-4 border-b border-border/60 px-4 py-2 sm:grid">
+            <SortableHeader label="Date" columnKey="date" sort={transfertSort} onToggleSort={toggleTransfertSort} />
+            <SortableHeader label="Recouvreur" columnKey="recouvreur" sort={transfertSort} onToggleSort={toggleTransfertSort} />
+            <SortableHeader label="Montant" columnKey="montant" sort={transfertSort} onToggleSort={toggleTransfertSort} />
+            <SortableHeader label="Note" columnKey="note" sort={transfertSort} onToggleSort={toggleTransfertSort} />
+            <SortableHeader label="Statut" columnKey="statut" sort={transfertSort} onToggleSort={toggleTransfertSort} />
           </div>
 
           {/* Transferts list */}
           {isLoadingTransferts ? (
             <TransfertTableSkeleton />
-          ) : mesTransferts && mesTransferts.length > 0 ? (
+          ) : processedTransferts.length > 0 ? (
             <div className="divide-y divide-border/40">
-              {mesTransferts.map((transfert) => (
+              {processedTransferts.map((transfert) => (
                 <TransfertRow key={transfert._id} transfert={transfert} />
               ))}
             </div>
           ) : (
-            <EmptyState message="Aucun transfert effectué" />
+            <EmptyState message="Aucun transfert effectué sur cette période" />
           )}
         </CardContent>
       </Card>
@@ -906,48 +991,33 @@ function RouteComponent() {
           </div>
         </CardHeader>
         <CardContent className="px-5 py-5">
-          {/* Filters */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <RangePicker
-              onChange={(dates: any) => setTimeFilter(dates)}
-              value={timeFilter}
-              placeholder={['Début', 'Fin']}
-              maxDate={dayjs().endOf('day')}
-              showTime
-              style={{ width: '100%', maxWidth: 400 }}
-            />
-            <div className="relative flex-1 sm:max-w-xs">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Rechercher une opération..."
-                value={opSearch}
-                onChange={(e) => setOpSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-          </div>
+          {/* Recherche */}
+          <TableToolbar
+            value={opSearch}
+            onChange={setOpSearch}
+            placeholder="Rechercher une opération..."
+          />
 
           {/* Table header (desktop only) */}
-          <div className="mt-4 hidden grid-cols-[1.2fr_0.8fr_1.2fr_1.5fr_1fr] gap-4 border-b border-border/60 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
-            <span>Date</span>
-            <span>Type</span>
-            <span>Compte</span>
-            <span>Description</span>
-            <span>Montant</span>
+          <div className="mt-4 hidden grid-cols-[1.2fr_0.8fr_1.2fr_1.5fr_1fr] gap-4 border-b border-border/60 px-4 py-2 sm:grid">
+            <SortableHeader label="Date" columnKey="date" sort={opSort} onToggleSort={toggleOpSort} />
+            <SortableHeader label="Type" columnKey="type" sort={opSort} onToggleSort={toggleOpSort} />
+            <SortableHeader label="Compte" columnKey="compte" sort={opSort} onToggleSort={toggleOpSort} />
+            <SortableHeader label="Description" columnKey="description" sort={opSort} onToggleSort={toggleOpSort} />
+            <SortableHeader label="Montant" columnKey="montant" sort={opSort} onToggleSort={toggleOpSort} />
           </div>
 
           {/* Operations list */}
           {isLoadingOperations ? (
             <OperationTableSkeleton />
-          ) : filteredOperations.length > 0 ? (
+          ) : processedOperations.length > 0 ? (
             <div className="divide-y divide-border/40">
-              {filteredOperations.map((operation) => (
+              {processedOperations.map((operation) => (
                 <OperationRow key={operation._id} operation={operation} />
               ))}
             </div>
           ) : (
-            <EmptyState message="Aucune opération trouvée" />
+            <EmptyState message="Aucune opération trouvée sur cette période" />
           )}
         </CardContent>
       </Card>

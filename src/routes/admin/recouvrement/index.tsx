@@ -29,6 +29,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import dayjs from '@/config/dayjs.config';
+import { DateRangeFilter } from '@/components/date-range-filter';
+import { useTimeRangeFilter } from '@/hooks/use-time-range-filter';
+import { useTableSearchSort, type ColumnDef } from '@/hooks/use-table-search-sort';
+import { SortableHeader, TableToolbar } from '@/components/table-controls';
 
 export const Route = createFileRoute('/admin/recouvrement/')({
   beforeLoad: () => requireRole([USER_ROLE.RECOUVREUR, USER_ROLE.SUPERADMIN]),
@@ -374,28 +378,29 @@ function RouteComponent() {
   const [noteTransfert, setNoteTransfert] = useState<string>('');
   const [activeTab, setActiveTab] = useState<string>('en_attente');
   const [activeTabEnvoyes, setActiveTabEnvoyes] = useState<string>('en_attente');
+  const { range: timeFilter, setRange: setTimeFilter, params } = useTimeRangeFilter();
 
   const qc = useQueryClient();
   const transfertVersementService = new TransfertVersementService();
   const userService = new UserService();
   const recouvreurService = new RecouvreurService();
 
-  const transfertsRecusKey = ['transferts-recouvreur', session?.user?.id];
-  const transfertsEnvoyesKey = ['transferts-envoyes-recouvreur', session?.user?.id];
+  const transfertsRecusKey = ['transferts-recouvreur', session?.user?.id, params];
+  const transfertsEnvoyesKey = ['transferts-envoyes-recouvreur', session?.user?.id, params];
   const soldeRecouvreurKey = ['solde-recouvreur', session?.user?.id];
   const caissiersPrincipauxKey = ['caissiers-principaux'];
 
   // Transferts reçus des vendeurs (en attente de validation)
   const { data: transfertsRecus, isLoading: isLoadingTransfertsRecus } = useQuery<TransfertVersement[]>({
     queryKey: transfertsRecusKey,
-    queryFn: () => transfertVersementService.findByRecouvreur(session!.user.id),
+    queryFn: () => transfertVersementService.findByRecouvreur(session!.user.id, params),
     enabled: !!session?.user?.id,
   });
 
   // Transferts envoyés vers le caissier principal
   const { data: transfertsEnvoyes, isLoading: isLoadingTransfertsEnvoyes } = useQuery<TransfertVersement[]>({
     queryKey: transfertsEnvoyesKey,
-    queryFn: () => transfertVersementService.findByTypeTransfert(TYPE_TRANSFERT.RECOUVREUR_VERS_CAISSIER_PRINCIPAL),
+    queryFn: () => transfertVersementService.findByTypeTransfert(TYPE_TRANSFERT.RECOUVREUR_VERS_CAISSIER_PRINCIPAL, params),
     enabled: !!session?.user?.id,
   });
 
@@ -496,6 +501,38 @@ function RouteComponent() {
         ? transfertsValidesEnvoyes
         : transfertsRefusesEnvoyes;
 
+  // ---- Recherche + tri : transferts reçus -----------------------------------
+  const recusColumns: ColumnDef<'date' | 'vendeur' | 'montant' | 'note' | 'statut'>[] = [
+    { key: 'date', label: 'Date', accessor: (t: TransfertVersement) => t.createdAt ? dayjs(t.createdAt).valueOf() : null },
+    { key: 'vendeur', label: 'Vendeur', accessor: (t: TransfertVersement) => t.source_acteur_name ?? '' },
+    { key: 'montant', label: 'Montant', accessor: (t: TransfertVersement) => t.montant },
+    { key: 'note', label: 'Note', accessor: (t: TransfertVersement) => t.note ?? '', sortable: false },
+    { key: 'statut', label: 'Statut', accessor: (t: TransfertVersement) => EtatTransfertLabels[t.etat] ?? t.etat },
+  ];
+  const {
+    search: recusSearch,
+    setSearch: setRecusSearch,
+    sort: recusSort,
+    toggleSort: toggleRecusSort,
+    processed: processedRecus,
+  } = useTableSearchSort(transfertsAffichesRecus, recusColumns);
+
+  // ---- Recherche + tri : transferts envoyés ---------------------------------
+  const envoyesColumns: ColumnDef<'date' | 'caissier' | 'montant' | 'note' | 'statut'>[] = [
+    { key: 'date', label: 'Date', accessor: (t: TransfertVersement) => t.createdAt ? dayjs(t.createdAt).valueOf() : null },
+    { key: 'caissier', label: 'Caissier Principal', accessor: (t: TransfertVersement) => t.destination_acteur_name ?? '' },
+    { key: 'montant', label: 'Montant', accessor: (t: TransfertVersement) => t.montant },
+    { key: 'note', label: 'Note', accessor: (t: TransfertVersement) => t.note ?? '', sortable: false },
+    { key: 'statut', label: 'Statut', accessor: (t: TransfertVersement) => EtatTransfertLabels[t.etat] ?? t.etat },
+  ];
+  const {
+    search: envoyesSearch,
+    setSearch: setEnvoyesSearch,
+    sort: envoyesSort,
+    toggleSort: toggleEnvoyesSort,
+    processed: processedEnvoyes,
+  } = useTableSearchSort(transfertsAffichesEnvoyes, envoyesColumns);
+
   const selectedCaissierName = caissiersPrincipaux?.find((c) => c._id === selectedCaissier)?.name || '-';
 
   return (
@@ -578,6 +615,21 @@ function RouteComponent() {
         )}
       </div>
 
+      {/* Filtre par intervalle de temps */}
+      <Card className="border-border/60 shadow-none">
+        <CardContent className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">
+              Filtrer par intervalle de temps
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Par défaut : mois en cours. S'applique aux transferts reçus et envoyés.
+            </p>
+          </div>
+          <DateRangeFilter value={timeFilter} onChange={setTimeFilter} />
+        </CardContent>
+      </Card>
+
       {/* Transferts reçus des vendeurs */}
       <Card className="border-border/60 shadow-none">
         <CardHeader className="border-b border-border/60 px-5 py-4">
@@ -611,22 +663,31 @@ function RouteComponent() {
             />
           </div>
 
+          {/* Recherche */}
+          <div className="px-3 pb-3">
+            <TableToolbar
+              value={recusSearch}
+              onChange={setRecusSearch}
+              placeholder="Rechercher un transfert reçu..."
+            />
+          </div>
+
           {/* Table header (desktop only) */}
-          <div className="hidden grid-cols-[1fr_1.5fr_1fr_1.2fr_0.7fr_0.7fr] gap-4 border-b border-border/60 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
-            <span>Date</span>
-            <span>Vendeur</span>
-            <span>Montant</span>
-            <span>Note</span>
-            <span>Statut</span>
-            <span>Actions</span>
+          <div className="hidden grid-cols-[1fr_1.5fr_1fr_1.2fr_0.7fr_0.7fr] gap-4 border-b border-border/60 px-4 py-2 sm:grid">
+            <SortableHeader label="Date" columnKey="date" sort={recusSort} onToggleSort={toggleRecusSort} />
+            <SortableHeader label="Vendeur" columnKey="vendeur" sort={recusSort} onToggleSort={toggleRecusSort} />
+            <SortableHeader label="Montant" columnKey="montant" sort={recusSort} onToggleSort={toggleRecusSort} />
+            <SortableHeader label="Note" columnKey="note" sort={recusSort} onToggleSort={toggleRecusSort} />
+            <SortableHeader label="Statut" columnKey="statut" sort={recusSort} onToggleSort={toggleRecusSort} />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Actions</span>
           </div>
 
           {/* Transferts list */}
           {isLoadingRecus ? (
             <TransfertTableSkeleton />
-          ) : transfertsAffichesRecus.length > 0 ? (
+          ) : processedRecus.length > 0 ? (
             <div className="divide-y divide-border/40">
-              {transfertsAffichesRecus.map((transfert) => (
+              {processedRecus.map((transfert) => (
                 <TransfertRecuRow
                   key={transfert._id}
                   transfert={transfert}
@@ -715,21 +776,30 @@ function RouteComponent() {
             />
           </div>
 
+          {/* Recherche */}
+          <div className="pb-3">
+            <TableToolbar
+              value={envoyesSearch}
+              onChange={setEnvoyesSearch}
+              placeholder="Rechercher un transfert envoyé..."
+            />
+          </div>
+
           {/* Table header (desktop only) */}
-          <div className="hidden grid-cols-[1fr_1.5fr_1fr_1.2fr_0.8fr] gap-4 border-b border-border/60 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground sm:grid">
-            <span>Date</span>
-            <span>Caissier Principal</span>
-            <span>Montant</span>
-            <span>Note</span>
-            <span>Statut</span>
+          <div className="hidden grid-cols-[1fr_1.5fr_1fr_1.2fr_0.8fr] gap-4 border-b border-border/60 px-4 py-2 sm:grid">
+            <SortableHeader label="Date" columnKey="date" sort={envoyesSort} onToggleSort={toggleEnvoyesSort} />
+            <SortableHeader label="Caissier Principal" columnKey="caissier" sort={envoyesSort} onToggleSort={toggleEnvoyesSort} />
+            <SortableHeader label="Montant" columnKey="montant" sort={envoyesSort} onToggleSort={toggleEnvoyesSort} />
+            <SortableHeader label="Note" columnKey="note" sort={envoyesSort} onToggleSort={toggleEnvoyesSort} />
+            <SortableHeader label="Statut" columnKey="statut" sort={envoyesSort} onToggleSort={toggleEnvoyesSort} />
           </div>
 
           {/* Transferts envoyés list */}
           {isLoadingEnvoyes ? (
             <TransfertTableSkeleton />
-          ) : transfertsAffichesEnvoyes.length > 0 ? (
+          ) : processedEnvoyes.length > 0 ? (
             <div className="divide-y divide-border/40">
-              {transfertsAffichesEnvoyes.map((transfert) => (
+              {processedEnvoyes.map((transfert) => (
                 <TransfertEnvoyeRow
                   key={transfert._id}
                   transfert={transfert}

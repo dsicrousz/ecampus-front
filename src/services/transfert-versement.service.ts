@@ -8,6 +8,18 @@ import type {
   ValiderTransfertDto,
   TYPE_TRANSFERT
 } from "@/types/transfert-versement";
+import type { DateRangeParams } from "@/hooks/use-time-range-filter";
+
+/**
+ * Construit la query string pour les paramètres de période.
+ */
+function buildDateQuery(params?: DateRangeParams): string {
+  if (!params) return '';
+  const parts: string[] = [];
+  if (params.dateDebut) parts.push(`dateDebut=${encodeURIComponent(params.dateDebut)}`);
+  if (params.dateFin) parts.push(`dateFin=${encodeURIComponent(params.dateFin)}`);
+  return parts.length > 0 ? `?${parts.join('&')}` : '';
+}
 
 export class TransfertVersementService extends Service {
   constructor() {
@@ -46,27 +58,31 @@ export class TransfertVersementService extends Service {
     return this.api.get(`/${this.ressource}/refuses`).then((res) => res.data);
   }
 
-  async findByTypeTransfert(typeTransfert: TYPE_TRANSFERT): Promise<TransfertVersement[]> {
-    return this.api.get(`/${this.ressource}/type/${typeTransfert}`).then((res) => res.data);
+  async findByTypeTransfert(typeTransfert: TYPE_TRANSFERT, dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
+    return this.api.get(`/${this.ressource}/type/${typeTransfert}${buildDateQuery(dateRange)}`).then((res) => res.data);
   }
 
-  async findByVendeur(vendeurId: string): Promise<TransfertVersement[]> {
-    return this.api.get(`/${this.ressource}/vendeur/${vendeurId}`).then((res) => res.data);
+  async findByVendeur(vendeurId: string, dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
+    return this.api.get(`/${this.ressource}/vendeur/${vendeurId}${buildDateQuery(dateRange)}`).then((res) => res.data);
   }
 
-  async findByRecouvreur(recouvreurId: string): Promise<TransfertVersement[]> {
-    return this.api.get(`/${this.ressource}/recouvreur/${recouvreurId}`).then((res) => res.data);
+  async findByRecouvreur(recouvreurId: string, dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
+    return this.api.get(`/${this.ressource}/recouvreur/${recouvreurId}${buildDateQuery(dateRange)}`).then((res) => res.data);
   }
 
-  async findByCaissierPrincipal(caissierPrincipalId: string): Promise<TransfertVersement[]> {
-    return this.api.get(`/${this.ressource}/caissier-principal/${caissierPrincipalId}`).then((res) => res.data);
+  async findByCaissierPrincipal(caissierPrincipalId: string, dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
+    return this.api.get(`/${this.ressource}/caissier-principal/${caissierPrincipalId}${buildDateQuery(dateRange)}`).then((res) => res.data);
   }
 
-  async findByAgentComptable(agentComptableId: string): Promise<TransfertVersement[]> {
-    return this.api.get(`/${this.ressource}/agent-comptable/${agentComptableId}`).then((res) => res.data);
+  async findByAgentComptable(agentComptableId: string, dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
+    return this.api.get(`/${this.ressource}/agent-comptable/${agentComptableId}${buildDateQuery(dateRange)}`).then((res) => res.data);
   }
 
   async findBySession(sessionId: string): Promise<TransfertVersement[]> {
     return this.api.get(`/${this.ressource}/session/${sessionId}`).then((res) => res.data);
+  }
+
+  async getAll(dateRange?: DateRangeParams): Promise<TransfertVersement[]> {
+    return this.api.get(`/${this.ressource}${buildDateQuery(dateRange)}`).then((res) => res.data);
   }
 }

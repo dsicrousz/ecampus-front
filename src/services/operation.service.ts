@@ -1,5 +1,17 @@
 import Api from "./Api";
 import { Service } from "./Service";
+import type { DateRangeParams } from "@/hooks/use-time-range-filter";
+
+/**
+ * Construit la query string pour les paramètres de période.
+ */
+function buildDateQuery(params?: DateRangeParams): string {
+  if (!params) return '';
+  const parts: string[] = [];
+  if (params.dateDebut) parts.push(`dateDebut=${encodeURIComponent(params.dateDebut)}`);
+  if (params.dateFin) parts.push(`dateFin=${encodeURIComponent(params.dateFin)}`);
+  return parts.length > 0 ? `?${parts.join('&')}` : '';
+}
 
 export class OperationService extends Service {
   constructor() {
@@ -148,10 +160,11 @@ export class OperationService extends Service {
 
   /**
    * Récupère les opérations d'un agent (RECHARGE et UTILISATION uniquement)
-   * Le backend ne supporte pas le filtrage par période, donc on filtre côté client
+   * @param id - ID de l'agent
+   * @param dateRange - (optionnel) Période { dateDebut, dateFin } au format ISO
    */
-  async byAgent(id: string): Promise<any> {
-    return this.api.get(`/${this.ressource}/agent/${id}`).then((res: any) => res.data);
+  async byAgent(id: string, dateRange?: DateRangeParams): Promise<any> {
+    return this.api.get(`/${this.ressource}/agent/${id}${buildDateQuery(dateRange)}`).then((res: any) => res.data);
   }
 
   /**
