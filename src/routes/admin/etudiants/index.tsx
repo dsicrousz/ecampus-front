@@ -1,71 +1,53 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { requireRole } from '@/lib/route-protection';
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo, useEffect } from "react";
-import { Spin, Table, Input, Space, Card, Avatar, Typography, Row, Col, Statistic, Button } from "antd";
+import { Spin, Table, Space, Card, Avatar, Typography, Row, Col, Statistic, Button } from "antd";
 import { SearchOutlined, UserOutlined } from "@ant-design/icons";
 import { EtudiantService } from "@/services/etudiant.service";
 import type { Etudiant } from "@/types/etudiant";
-import type { ColumnsType } from "antd/es/table";
+import type { ColumnsType, TableProps } from "antd/es/table";
 import { env } from "@/env";
 import dayjs from '@/config/dayjs.config'
 import { USER_ROLE } from '@/types/user.roles'
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationControls } from '@/components/pagination-controls';
 
 const { Title, Text } = Typography;
-const PAGE_SIZE = 15
 
 export const Route = createFileRoute('/admin/etudiants/')({
   beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
-  validateSearch: (search: Record<string, unknown>) => {
-    const rawPage = Number(search.page)
-    return {
-      page: Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1,
-    }
-  },
   component: RouteComponent,
 })
 
 function RouteComponent() {
-  const navigate = Route.useNavigate()
   const goTo = useNavigate()
-  const { page } = Route.useSearch()
   const etudiantService = new EtudiantService()
-  const [searchText, setSearchText] = useState('')
-  
-  const { data: etudiants, isLoading } = useQuery({ 
-    queryKey: ['etudiants'], 
-    queryFn: () => etudiantService.getAll() 
+
+  const pagination = usePagination({
+    initialPage: 1,
+    initialLimit: 15,
+    initialSortBy: 'createdAt',
+    initialSortOrder: 'desc',
+  });
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['etudiants', 'paginated', pagination.params],
+    queryFn: () => etudiantService.getPaginated(pagination.params),
   })
 
-  // Filtrer les étudiants selon la recherche
-  const filteredEtudiants = useMemo(() => {
-    if (!etudiants) return []
-    if (!searchText) return etudiants
-    
-    const search = searchText.toLowerCase()
-    return etudiants.filter((etudiant: Etudiant) => 
-      etudiant.prenom?.toLowerCase().includes(search) ||
-      etudiant.nom?.toLowerCase().includes(search) ||
-      etudiant.ncs?.toLowerCase().includes(search)
-    )
-  }, [etudiants, searchText])
+  const etudiants = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 1;
 
-  const sortedEtudiants = useMemo(() => {
-    return [...filteredEtudiants].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    )
-  }, [filteredEtudiants])
-
-  const totalPages = Math.max(1, Math.ceil(filteredEtudiants.length / PAGE_SIZE))
-
-  useEffect(() => {
-    if (page > totalPages) {
-      navigate({
-        search: { page: totalPages },
-        replace: true,
-      })
+  const handleTableChange: TableProps<Etudiant>['onChange'] = (_pagination, _filters, sorter) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    if (!s || !s.order) {
+      pagination.setSort('createdAt', 'desc');
+      return;
     }
-  }, [page, totalPages, navigate])
+    const field = String(s.field ?? s.columnKey ?? 'createdAt');
+    pagination.setSort(field, s.order === 'ascend' ? 'asc' : 'desc');
+  };
 
   const columns: ColumnsType<Etudiant> = [
     {
@@ -74,8 +56,8 @@ function RouteComponent() {
       key: 'createdAt',
       align: 'center' as const,
       render: (createdAt: string) => dayjs(createdAt).format('DD/MM/YYYY'),
-      sorter: (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      defaultSortOrder: 'descend' as const,
+      sorter: true,
+      sortOrder: pagination.sortBy === 'createdAt' ? (pagination.sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
     },
     {
       title: 'Photo',
@@ -83,8 +65,8 @@ function RouteComponent() {
       key: 'avatar',
       align: 'center' as const,
       render: (avatar: string) => (
-        <Avatar 
-          size={64} 
+        <Avatar
+          size={64}
           src={avatar ? `${env.VITE_R2_URL}/${avatar}` : undefined}
           icon={<UserOutlined />}
         />
@@ -95,21 +77,24 @@ function RouteComponent() {
       dataIndex: 'prenom',
       key: 'prenom',
       align: 'center' as const,
-      sorter: (a, b) => a.prenom.localeCompare(b.prenom),
+      sorter: true,
+      sortOrder: pagination.sortBy === 'prenom' ? (pagination.sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
     },
     {
       title: 'Nom',
       dataIndex: 'nom',
       key: 'nom',
       align: 'center' as const,
-      sorter: (a, b) => a.nom.localeCompare(b.nom),
+      sorter: true,
+      sortOrder: pagination.sortBy === 'nom' ? (pagination.sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
     },
     {
       title: 'N° SOCIALE',
       dataIndex: 'ncs',
       key: 'ncs',
       align: 'center' as const,
-      sorter: (a, b) => a.ncs.localeCompare(b.ncs),
+      sorter: true,
+      sortOrder: pagination.sortBy === 'ncs' ? (pagination.sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
     },
     {
       title: 'Actions',
@@ -117,9 +102,9 @@ function RouteComponent() {
       align: 'center' as const,
       render: (_: any, record: Etudiant) => (
         <Space>
-          <Button 
-            type="primary" 
-            icon={<SearchOutlined />} 
+          <Button
+            type="primary"
+            icon={<SearchOutlined />}
             onClick={() => goTo({ to: '/admin/etudiants/$etudiantId', params: { etudiantId: record._id } })}
           >
             Voir
@@ -152,52 +137,27 @@ function RouteComponent() {
                   Gérez les étudiants et leurs informations
                 </Text>
               </Col>
-              <Col flex="none">
-                <Input
-                  placeholder="Rechercher..."
-                  prefix={<SearchOutlined />}
-                  value={searchText}
-                  onChange={(e) => {
-                    setSearchText(e.target.value);
-                    navigate({
-                      search: { page: 1 },
-                    })
-                  }}
-                  allowClear
-                  style={{ width: 300 }}
-                />
-              </Col>
             </Row>
           </Card>
 
           {/* Statistiques */}
           <Row gutter={[16, 16]}>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12} md={8}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
                   title={<span className="text-primary font-medium">Total Étudiants</span>}
-                  value={etudiants?.length || 0}
+                  value={total}
                   prefix={<UserOutlined />}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={8}>
-              <Card className="controller-stat-card" size="small">
-                <Statistic
-                  title={<span className="text-emerald-700 font-medium">Filtrés</span>}
-                  value={filteredEtudiants.length}
-                  prefix={<SearchOutlined />}
-                  valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
-                />
-              </Card>
-            </Col>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12} md={8}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
                   title={<span className="text-orange-700 font-medium">Page actuelle</span>}
-                  value={page}
-                  suffix={`/ ${totalPages}`}
+                  value={pagination.page}
+                  suffix={`/ ${Math.max(1, totalPages)}`}
                   valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
                 />
               </Card>
@@ -206,26 +166,24 @@ function RouteComponent() {
 
           {/* Table */}
           <Card className="controller-panel" title={<span className="text-foreground font-semibold">Liste des Étudiants</span>}>
+            <div className="mb-4">
+              <PaginationControls
+                pagination={pagination}
+                total={total}
+                totalPages={totalPages}
+                pageSizeOptions={[15, 30, 50]}
+                searchPlaceholder="Rechercher un étudiant..."
+                loading={isLoading}
+              />
+            </div>
             <Table
               className="controller-table"
               columns={columns}
-              dataSource={sortedEtudiants}
+              dataSource={etudiants}
               rowKey="_id"
-              pagination={{
-                current: page,
-                pageSize: PAGE_SIZE,
-                total: filteredEtudiants.length,
-                onChange: (p) => {
-                  navigate({
-                    search: { page: p },
-                  })
-                },
-                showSizeChanger: false,
-                showQuickJumper: true,
-                showTotal: (total, range) => 
-                  `${range[0]}-${range[1]} sur ${total} étudiant${total > 1 ? 's' : ''}`,
-              }}
+              pagination={false}
               loading={isLoading}
+              onChange={handleTableChange}
               scroll={{ x: 'max-content' }}
             />
           </Card>

@@ -1,84 +1,64 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, useMemo, useEffect } from "react";
-import { Spin, Table, Button, Input, Space, Card, Row, Col, Statistic, Typography, Tag } from "antd";
-import { FolderOutlined, SearchOutlined, CheckCircleOutlined, WalletOutlined } from "@ant-design/icons";
+import { Spin, Table, Button, Space, Card, Row, Col, Statistic, Typography, Tag } from "antd";
+import { FolderOutlined, SearchOutlined, WalletOutlined } from "@ant-design/icons";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { requireRole } from '@/lib/route-protection';
 import { CompteService } from "@/services/compte.service";
 import type { Compte } from "@/types/compte";
-import type { ColumnsType } from 'antd/es/table';
+import type { ColumnsType, TableProps } from 'antd/es/table';
 import { USER_ROLE } from '@/types/user.roles';
+import { usePagination } from '@/hooks/use-pagination';
+import { PaginationControls } from '@/components/pagination-controls';
 
 const { Title, Text } = Typography;
 
-export const Route = createFileRoute('/admin/comptes/')({
-  beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
-  validateSearch: (search: Record<string, unknown>) => {
-    const rawPage = Number(search.page)
-    return {
-      page: Number.isFinite(rawPage) && rawPage > 0 ? Math.floor(rawPage) : 1,
-    }
-  },
-  component: RouteComponent,
-})
-
-const PAGE_SIZE = 10;
-
 // Fonction utilitaire pour formater les montants
 const formatMontant = (montant: number): string => {
-  return new Intl.NumberFormat('fr-FR', { 
-    style: 'currency', 
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
     currency: 'XOF',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
   }).format(montant)
 }
 
+export const Route = createFileRoute('/admin/comptes/')({
+  beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
+  component: RouteComponent,
+})
+
 function RouteComponent() {
   const compteService = new CompteService();
-  const navigate = Route.useNavigate();
   const goTo = useNavigate();
-  const { page } = Route.useSearch();
-  const [searchText, setSearchText] = useState('');
 
-  const key = ['comptes'];
-  const { data: comptes, isLoading: isLoadingF } = useQuery({ 
-    queryKey: key, 
-    queryFn: () => compteService.getAll() 
+  const pagination = usePagination({
+    initialPage: 1,
+    initialLimit: 10,
+    initialSortBy: 'solde',
+    initialSortOrder: 'desc',
   });
 
-  // Filtrer les comptes selon la recherche
-  const filteredComptes = useMemo(() => {
-    if (!comptes) return [];
-    if (!searchText) return comptes;
-    
-    const search = searchText.toLowerCase();
-    return comptes.filter((compte: Compte) => 
-      compte.code?.toLowerCase().includes(search) ||
-      compte.etudiant?.prenom?.toLowerCase().includes(search) ||
-      compte.etudiant?.nom?.toLowerCase().includes(search) ||
-      compte.etudiant?.ncs?.toLowerCase().includes(search)
-    );
-  }, [comptes, searchText]);
+  const { data, isLoading } = useQuery({
+    queryKey: ['comptes', 'paginated', pagination.params],
+    queryFn: () => compteService.getPaginated(pagination.params),
+  });
 
-  const totalPages = Math.max(1, Math.ceil(filteredComptes.length / PAGE_SIZE))
+  const comptes = data?.data ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? 1;
 
-  useEffect(() => {
-    if (page > totalPages) {
-      navigate({
-        search: { page: totalPages },
-        replace: true,
-      })
+  const handleTableChange: TableProps<Compte>['onChange'] = (_pagination, _filters, sorter) => {
+    const s = Array.isArray(sorter) ? sorter[0] : sorter;
+    if (!s || !s.columnKey) return;
+    const field = String(s.field ?? s.columnKey);
+    // Cycle à 2 états (grâce à sortDirections) : s.order est toujours 'ascend' ou 'descend'
+    if (!s.order) {
+      // Fallback : toggle la direction courante
+      pagination.setSort(field, pagination.sortOrder === 'asc' ? 'desc' : 'asc');
+      return;
     }
-  }, [page, totalPages, navigate])
-
-  // Calculate statistics
-  const activeAccounts = comptes?.filter((c: Compte) => c.is_actif)?.length || 0;
-  
-  // Calculer le solde total (montant numérique)
-  const totalBalance = comptes?.reduce((sum, c) => {
-    return sum + (c.solde || 0);
-  }, 0) || 0;
+    pagination.setSort(field, s.order === 'ascend' ? 'asc' : 'desc');
+  };
 
   const columns: ColumnsType<Compte> = [
     {
@@ -95,11 +75,8 @@ function RouteComponent() {
           <Tag color="default">Non assigné</Tag>
         )
       ),
-      sorter: (a, b) => {
-        const nameA = a.etudiant ? `${a.etudiant.prenom} ${a.etudiant.nom}` : '';
-        const nameB = b.etudiant ? `${b.etudiant.prenom} ${b.etudiant.nom}` : '';
-        return nameA.localeCompare(nameB);
-      },
+      sorter: true,
+      sortOrder: pagination.sortBy === 'etudiant' ? (pagination.sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
     },
     {
       title: 'Solde',
@@ -111,8 +88,8 @@ function RouteComponent() {
           {formatMontant(solde)}
         </Tag>
       ),
-      sorter: (a, b) => (b.solde || 0) - (a.solde || 0),
-      defaultSortOrder: 'descend' as const,
+      sorter: true,
+      sortOrder: pagination.sortBy === 'solde' ? (pagination.sortOrder === 'asc' ? 'ascend' : 'descend') : undefined,
     },
     {
       title: 'État',
@@ -124,11 +101,6 @@ function RouteComponent() {
           {actif ? 'Actif' : 'Inactif'}
         </Tag>
       ),
-      filters: [
-        { text: 'Actif', value: true },
-        { text: 'Inactif', value: false },
-      ],
-      onFilter: (value, record) => record.is_actif === value,
     },
     {
       title: 'Actions',
@@ -146,9 +118,12 @@ function RouteComponent() {
     },
   ];
 
+  // Comptes actifs sur la page courante (indicateur partiel)
+  const activeOnPage = comptes.filter((c) => c.is_actif).length;
+
   return (
     <div className="controller-page">
-      <Spin spinning={isLoadingF}>
+      <Spin spinning={isLoading}>
         <Space orientation="vertical" size="large" style={{ width: '100%' }}>
           {/* Hero Header */}
           <Card className="controller-hero controller-hero-soft border">
@@ -169,52 +144,37 @@ function RouteComponent() {
                   Gérez les comptes étudiants et leurs soldes
                 </Text>
               </Col>
-              <Col flex="none">
-                <Input
-                  placeholder="Rechercher..."
-                  prefix={<SearchOutlined />}
-                  value={searchText}
-                  onChange={(e) => {
-                    setSearchText(e.target.value);
-                    navigate({
-                      search: { page: 1 },
-                    })
-                  }}
-                  allowClear
-                  style={{ width: 300 }}
-                />
-              </Col>
             </Row>
           </Card>
 
           {/* Statistiques */}
           <Row gutter={[16, 16]}>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12} md={8}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
                   title={<span className="text-primary font-medium">Total Comptes</span>}
-                  value={comptes?.length || 0}
+                  value={total}
                   prefix={<WalletOutlined />}
                   valueStyle={{ color: '#0ea5e9', fontSize: '1.75rem', fontWeight: 800 }}
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12} md={8}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title={<span className="text-emerald-700 font-medium">Comptes Actifs</span>}
-                  value={activeAccounts}
-                  prefix={<CheckCircleOutlined />}
+                  title={<span className="text-emerald-700 font-medium">Actifs (page courante)</span>}
+                  value={activeOnPage}
+                  prefix={<SearchOutlined />}
                   valueStyle={{ color: '#16a34a', fontSize: '1.75rem', fontWeight: 800 }}
                 />
               </Card>
             </Col>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12} md={8}>
               <Card className="controller-stat-card" size="small">
                 <Statistic
-                  title={<span className="text-orange-700 font-medium">Solde Total</span>}
-                  value={totalBalance}
-                  formatter={(value) => formatMontant(value as number)}
+                  title={<span className="text-orange-700 font-medium">Page actuelle</span>}
+                  value={pagination.page}
+                  suffix={`/ ${Math.max(1, totalPages)}`}
                   valueStyle={{ color: '#f97316', fontSize: '1.75rem', fontWeight: 800 }}
                 />
               </Card>
@@ -223,25 +183,24 @@ function RouteComponent() {
 
           {/* Table */}
           <Card className="controller-panel" title={<span className="text-foreground font-semibold">Liste des Comptes</span>}>
+            <div className="mb-4">
+              <PaginationControls
+                pagination={pagination}
+                total={total}
+                totalPages={totalPages}
+                pageSizeOptions={[10, 20, 50]}
+                searchPlaceholder="Rechercher un compte..."
+                loading={isLoading}
+              />
+            </div>
             <Table
               className="controller-table"
               columns={columns}
-              dataSource={filteredComptes}
+              dataSource={comptes}
               rowKey="_id"
-              pagination={{
-                current: page,
-                pageSize: PAGE_SIZE,
-                onChange: (p) => {
-                  navigate({
-                    search: { page: p },
-                  })
-                },
-                showSizeChanger: false,
-                showQuickJumper: true,
-                showTotal: (total, range) => 
-                  `${range[0]}-${range[1]} sur ${total} compte${total > 1 ? 's' : ''}`,
-              }}
-              loading={isLoadingF}
+              pagination={false}
+              loading={isLoading}
+              onChange={handleTableChange}
               scroll={{ x: 'max-content' }}
             />
           </Card>
