@@ -408,7 +408,7 @@ function RouteComponent() {
 
   // Récupérer les tickets pour la sélection
   const { data: tickets, isLoading: isLoadingTickets } = useQuery({
-    queryKey: [QUERY_KEYS.TICKETS],
+    queryKey: [QUERY_KEYS.ALLTICKETS],
     queryFn: () => ticketService.getAll(),
   });
 

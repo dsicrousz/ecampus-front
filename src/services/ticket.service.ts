@@ -31,4 +31,8 @@ export class TicketService extends Service<Ticket> {
     return this.api.get(`/${this.ressource}${buildPaginationQuery(params)}`).then((res: any) => res.data);
   }
 
+    async getAll(): Promise<Ticket[]> {
+    return this.api.get(`/${this.ressource}/all`).then((res: any) => res.data);
+  }
+
 }
