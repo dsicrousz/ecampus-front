@@ -28,6 +28,8 @@ import {
 } from '@ant-design/icons';
 import { ServiceService } from '@/services/service.service';
 import { UserService } from '@/services/user.service';
+import { PlanningService } from '@/services/planning.service';
+import type { Planning } from '@/types/planning';
 import { QUERY_KEYS } from '@/constants';
 
 const { Title, Text } = Typography;
@@ -65,6 +67,7 @@ function RouteComponent() {
   const qc = useQueryClient();
   const serviceService = new ServiceService();
   const userService = new UserService();
+  const planningService = new PlanningService();
 
   const { data: service, isLoading } = useQuery({
     queryKey: ['service', serviceId],
@@ -76,6 +79,12 @@ function RouteComponent() {
   const { data: controleurs } = useQuery({
     queryKey: ['users', USER_ROLE.CONTROLEUR],
     queryFn: () => userService.byRole(USER_ROLE.CONTROLEUR),
+  });
+
+  const { data: plannings, isLoading: isLoadingPlannings } = useQuery<Planning[]>({
+    queryKey: ['planning', 'service', serviceId],
+    queryFn: () => planningService.findByService(serviceId),
+    enabled: !!serviceId,
   });
 
   const agentNameMap = useMemo(() => {
@@ -213,35 +222,46 @@ function RouteComponent() {
           </Card>
 
           {/* Planning de contrôle */}
-          {service.planning && service.planning.length > 0 && (
-            <Card className="controller-panel" title={<span className="text-foreground font-semibold">Planning de Contrôle</span>}>
-              <Row gutter={[16, 16]}>
-                {service.planning.map((entry, idx) => (
-                  <Col xs={24} sm={12} md={8} key={idx}>
-                    <Card className="controller-stat-card" size="small">
-                      <Space direction="vertical" className="w-full">
-                        <div className="flex items-center gap-2">
-                          <ClockCircleOutlined className="text-primary" />
-                          <Text strong>{DayLabels[entry.jour] || `Jour ${entry.jour}`}</Text>
-                        </div>
-                        <Text type="secondary">
-                          {entry.heureDebut} - {entry.heureFin}
-                        </Text>
-                        <div>
-                          <Text type="secondary" className="text-xs">Agents:</Text>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {entry.agents.map((agentId: string, i: number) => (
-                              <Tag key={i} color="blue">{agentNameMap[agentId] || agentId}</Tag>
-                            ))}
-                          </div>
-                        </div>
-                      </Space>
-                    </Card>
-                  </Col>
-                ))}
-              </Row>
-            </Card>
-          )}
+          <Card className="controller-panel" title={<span className="text-foreground font-semibold">Planning de Contrôle</span>}>
+            {isLoadingPlannings ? (
+              <Spin />
+            ) : plannings && plannings.length > 0 ? (
+              plannings.map((planning, pIdx) => (
+                <div key={pIdx} className="mb-4">
+                  <Text strong className="block mb-2">
+                    🍽️ {planning.restaurant.nom}
+                  </Text>
+                  <Row gutter={[16, 16]}>
+                    {planning.creneaux.map((entry, idx) => (
+                      <Col xs={24} sm={12} md={8} key={idx}>
+                        <Card className="controller-stat-card" size="small">
+                          <Space direction="vertical" className="w-full">
+                            <div className="flex items-center gap-2">
+                              <ClockCircleOutlined className="text-primary" />
+                              <Text strong>{DayLabels[entry.jour] || `Jour ${entry.jour}`}</Text>
+                            </div>
+                            <Text type="secondary">
+                              {entry.heureDebut} - {entry.heureFin}
+                            </Text>
+                            <div>
+                              <Text type="secondary" className="text-xs">Agents:</Text>
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {entry.agents.map((agentId: string, i: number) => (
+                                  <Tag key={i} color="blue">{agentNameMap[agentId] || agentId}</Tag>
+                                ))}
+                              </div>
+                            </div>
+                          </Space>
+                        </Card>
+                      </Col>
+                    ))}
+                  </Row>
+                </div>
+              ))
+            ) : (
+              <Empty description="Aucun planning configuré pour ce service" />
+            )}
+          </Card>
 
           {/* Actions */}
           <Row justify="center">

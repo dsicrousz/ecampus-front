@@ -1,4 +1,6 @@
 import type { Ticket } from './ticket';
+// Re-export pour rétro-compatibilité — PlanningControle vit maintenant dans planning.ts
+export type { PlanningControle } from './planning';
 
 export enum TypeService {
   RESTAURANT = 'restaurant',
@@ -7,13 +9,6 @@ export enum TypeService {
   CULTURE = 'culture',
   LOGEMENT = 'logement',
   AUTRE = 'autre',
-}
-
-export interface PlanningControle {
-  jour: number;
-  heureDebut: string;
-  heureFin: string;
-  agents: string[];
 }
 
 export interface Service {
@@ -25,8 +20,8 @@ export interface Service {
   // Ticket lié au service (autopopulate, required)
   ticket: Ticket | string;
 
-  // Planning de contrôle
-  planning?: PlanningControle[];
+  // Le planning est maintenant géré via la collection Planning dédiée
+  // (voir /planning/restaurant/:id/service/:id)
 
   createdAt?: Date;
   updatedAt?: Date;

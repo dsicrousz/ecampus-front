@@ -22,6 +22,7 @@ import {
   Pencil,
   Loader2,
   Inbox,
+  Clock,
 } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { RestaurantService } from '@/services/restaurant.service';
@@ -39,6 +40,7 @@ import { TypeService, type Service } from '@/types/service';
 import type { Operation } from '@/types/operation';
 import type { RestaurantServiceEntry } from '@/types/restaurant';
 import { formatMontant } from '@/types/operation';
+import { PlanningForm } from '@/components/planning-form';
 import pdfMake from 'pdfmake/build/pdfmake';
 import * as pdfFonts from 'pdfmake/build/vfs_fonts';
 import type { TDocumentDefinitions } from 'pdfmake/interfaces';
@@ -269,10 +271,11 @@ interface ServiceEntryRowProps {
   canEdit: boolean;
   onEdit: (record: RestaurantServiceEntry) => void;
   onRemove: (id: string) => void;
+  onEditPlanning: (serviceId: string, serviceNom: string) => void;
   isRemoving: boolean;
 }
 
-function ServiceEntryRow({ entry, ticketLabelMap, canEdit, onEdit, onRemove, isRemoving }: ServiceEntryRowProps) {
+function ServiceEntryRow({ entry, ticketLabelMap, canEdit, onEdit, onRemove, onEditPlanning, isRemoving }: ServiceEntryRowProps) {
   const svc = typeof entry.service === 'object' ? entry.service : null;
   const svcId = typeof entry.service === 'object' ? (entry.service as Service)._id : entry.service as string;
   const ticketId = svc && typeof svc.ticket === 'object' ? (svc.ticket as any)?._id : svc?.ticket as string;
@@ -302,6 +305,14 @@ function ServiceEntryRow({ entry, ticketLabelMap, canEdit, onEdit, onRemove, isR
       <div className="flex items-center gap-1">
         {canEdit && (
           <>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() => onEditPlanning(svcId, svc?.nom || 'Service')}
+              title="Gérer le planning de contrôle"
+            >
+              <Clock className="size-4" />
+            </Button>
             <Button
               size="icon-sm"
               variant="ghost"
@@ -381,6 +392,9 @@ function RouteComponent() {
   const [editServiceId, setEditServiceId] = useState<string>('');
   const [editServiceNom, setEditServiceNom] = useState<string>('');
   const [editPrixRepreneur, setEditPrixRepreneur] = useState<number>(0);
+  // Planning form state
+  const [planningOpen, setPlanningOpen] = useState(false);
+  const [planningTarget, setPlanningTarget] = useState<{ id: string; nom: string } | null>(null);
 
   const userService = new UserService();
   const keyRepreneurs = ['repreneurs'];
@@ -407,10 +421,15 @@ function RouteComponent() {
   const queryClient = useQueryClient();
 
   // Récupérer les tickets pour la sélection
-  const { data: tickets, isLoading: isLoadingTickets } = useQuery({
+  const { data: ticketsRaw, isLoading: isLoadingTickets } = useQuery<any>({
     queryKey: [QUERY_KEYS.ALLTICKETS],
     queryFn: () => ticketService.getAll(),
   });
+  // Rétro-compatibilité : le backend peut retourner un array ou un PaginatedResult
+  const tickets = useMemo(() => {
+    if (!ticketsRaw) return [];
+    return Array.isArray(ticketsRaw) ? ticketsRaw : (ticketsRaw.data ?? []);
+  }, [ticketsRaw]);
 
   // Récupérer tous les services de type restaurant (créés par l'administrateur)
   const { data: allRestaurantServices, isLoading: isLoadingAllServices } = useQuery({
@@ -618,6 +637,12 @@ function RouteComponent() {
       serviceId: editServiceId,
       prixRepreneur: editPrixRepreneur,
     });
+  };
+
+  // Ouvrir le formulaire de planning pour un service donné
+  const handleEditPlanning = (serviceId: string, serviceNom: string) => {
+    setPlanningTarget({ id: serviceId, nom: serviceNom });
+    setPlanningOpen(true);
   };
 
   // Préparer les options pour les repreneurs
@@ -1328,6 +1353,7 @@ function RouteComponent() {
                   canEdit={canEdit}
                   onEdit={handleEditServiceEntry}
                   onRemove={handleRemoveService}
+                  onEditPlanning={handleEditPlanning}
                   isRemoving={isRemovingService}
                 />
               ))}
@@ -1779,6 +1805,20 @@ function RouteComponent() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* Planning de contrôle (composant dédié) */}
+      {planningTarget && (
+        <PlanningForm
+          restaurantId={restaurantId}
+          serviceId={planningTarget.id}
+          serviceNom={planningTarget.nom}
+          open={planningOpen}
+          onOpenChange={(open) => {
+            setPlanningOpen(open);
+            if (!open) setPlanningTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }

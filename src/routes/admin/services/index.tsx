@@ -20,7 +20,6 @@ import {
   Tag,
   Popconfirm,
   Statistic,
-  TimePicker,
 } from 'antd';
 import {
   PlusOutlined,
@@ -28,19 +27,14 @@ import {
   DeleteOutlined,
   ShopOutlined,
   EyeOutlined,
-  ClockCircleOutlined,
-  MinusCircleOutlined,
 } from '@ant-design/icons';
 import { useState } from "react";
 import { ServiceService } from '@/services/service.service';
-import { UserService } from '@/services/user.service';
 import type { ColumnsType } from 'antd/es/table';
-import { TypeService, type Service, type PlanningControle } from '@/types/service';
+import { TypeService, type Service } from '@/types/service';
 import { USER_ROLE } from '@/types/user.roles';
 import { QUERY_KEYS } from '@/constants';
 import { TicketService } from '@/services/ticket.service';
-import type { Ticket } from '@/types/ticket';
-import dayjs from 'dayjs';
 import { usePagination } from '@/hooks/use-pagination';
 import { PaginationControls } from '@/components/pagination-controls';
 
@@ -52,7 +46,6 @@ interface ServiceFormValues {
   type: TypeService;
   ticket: string;
   active: boolean;
-  planning?: PlanningControle[];
 }
 
 // Constants
@@ -83,16 +76,6 @@ const TypeServiceLabels: Record<TypeService, string> = {
   autre: 'Autre'
 };
 
-const DayOptions = [
-  { value: 0, label: 'Lundi' },
-  { value: 1, label: 'Mardi' },
-  { value: 2, label: 'Mercredi' },
-  { value: 3, label: 'Jeudi' },
-  { value: 4, label: 'Vendredi' },
-  { value: 5, label: 'Samedi' },
-  { value: 6, label: 'Dimanche' },
-];
-
 export const Route = createFileRoute('/admin/services/')({
   beforeLoad: () => requireRole([USER_ROLE.ADMIN, USER_ROLE.SUPERADMIN]),
   component: RouteComponent,
@@ -104,7 +87,6 @@ function RouteComponent() {
   const [opened, setOpened] = useState(false);
   const [openedU, setOpenedU] = useState(false);
   const ticketService = new TicketService();
-  const userService = new UserService();
   const navigate = useNavigate();
   const pagination = usePagination({ initialLimit: 10, initialSortBy: 'nom', initialSortOrder: 'asc' });
   
@@ -124,21 +106,11 @@ function RouteComponent() {
   const totalPages = servicesData?.totalPages ?? 1;
 
   // Fetch tickets for service selection
-  const { data: tickets, isLoading: isLoadingTickets } = useQuery<Ticket[]>({
+  const { data: ticketsRaw, isLoading: isLoadingTickets } = useQuery<any>({
     queryKey: [QUERY_KEYS.TICKETS],
     queryFn: () => ticketService.getAll()
   });
-
-  // Fetch controleurs for planning agent selection
-  const { data: controleurs, isLoading: isLoadingControleurs } = useQuery({
-    queryKey: ['users', USER_ROLE.CONTROLEUR],
-    queryFn: () => userService.byRole(USER_ROLE.CONTROLEUR),
-  });
-
-  const controleurOptions = (controleurs || []).map((u: any) => ({
-    value: u._id,
-    label: `${u.name} (${u.email})`,
-  }));
+  const tickets = Array.isArray(ticketsRaw) ? ticketsRaw : (ticketsRaw?.data ?? []);
 
 
   // Create mutation
@@ -184,22 +156,12 @@ function RouteComponent() {
     updateService({ id: _id, data: { active: checked } });
   };
 
-  const transformPlanning = (planning: any[]): PlanningControle[] => {
-    return (planning || []).map((entry) => ({
-      jour: entry.jour,
-      heureDebut: entry.heureDebut ? dayjs(entry.heureDebut).format('HH:mm') : '',
-      heureFin: entry.heureFin ? dayjs(entry.heureFin).format('HH:mm') : '',
-      agents: entry.agents || [],
-    }));
-  };
-
   const onCreate = (values: any) => {
     const data: ServiceFormValues = {
       nom: values.nom,
       type: values.type,
       ticket: values.ticket,
       active: values.active,
-      planning: transformPlanning(values.planning),
     };
     createService(data);
   };
@@ -211,7 +173,6 @@ function RouteComponent() {
       type: rest.type,
       ticket: typeof rest.ticket === 'object' && rest.ticket?._id ? rest.ticket._id : (rest.ticket as any),
       active: rest.active,
-      planning: transformPlanning(rest.planning),
     };
     updateService({ id: _id, data });
   };
@@ -220,11 +181,6 @@ function RouteComponent() {
     const formData = {
       ...record,
       ticket: typeof record.ticket === 'object' && (record.ticket as any)?._id ? (record.ticket as any)._id : record.ticket,
-      planning: (record.planning || []).map((entry: PlanningControle) => ({
-        ...entry,
-        heureDebut: entry.heureDebut ? dayjs(entry.heureDebut, 'HH:mm') : undefined,
-        heureFin: entry.heureFin ? dayjs(entry.heureFin, 'HH:mm') : undefined,
-      })),
     };
     formU.setFieldsValue(formData);
     setOpenedU(true);
@@ -497,107 +453,20 @@ function RouteComponent() {
                 size="large"
                 showSearch
                 placeholder="Sélectionner un ticket"
-                options={tickets?.map(t => ({
+                options={tickets?.map((t: any) => ({
                   value: t._id,
                   label: `${t.nom} (${t.prix} FCFA)`
                 }))}
               />
             </Form.Item>
 
-            {/* Planning de contrôle */}
-            <div className="mb-4">
-              <Text strong className="block mb-2">
-                <ClockCircleOutlined className="mr-1" />
-                Planning de Contrôle
-              </Text>
-              <Text type="secondary" className="text-sm block mb-3">
-                Définissez les créneaux et les agents de contrôle pour ce service.
-              </Text>
-              <Form.List name="planning">
-                {(fields, { add, remove }) => (
-                  <>
-                    {fields.map(({ key, name, ...restField }) => (
-                      <div key={key} className="rounded-2xl border border-border bg-muted p-4 mb-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <Text strong>Créneau {name + 1}</Text>
-                          <Button
-                            type="text"
-                            icon={<MinusCircleOutlined />}
-                            danger
-                            onClick={() => remove(name)}
-                            size="small"
-                          />
-                        </div>
-                        <Row gutter={[12, 12]}>
-                          <Col xs={24} sm={8}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, 'jour']}
-                              label="Jour"
-                              rules={[{ required: true, message: 'Le jour est requis' }]}
-                            >
-                              <Select placeholder="Sélectionner un jour" options={DayOptions} />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={12} sm={8}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, 'heureDebut']}
-                              label="Heure début"
-                              rules={[{ required: true, message: 'L\'heure de début est requise' }]}
-                            >
-                              <TimePicker format="HH:mm" className="w-full" />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={12} sm={8}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, 'heureFin']}
-                              label="Heure fin"
-                              rules={[{ required: true, message: 'L\'heure de fin est requise' }]}
-                            >
-                              <TimePicker format="HH:mm" className="w-full" />
-                            </Form.Item>
-                          </Col>
-                          <Col span={24}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, 'agents']}
-                              label="Agents de contrôle"
-                            >
-                              <Select
-                                mode="multiple"
-                                placeholder="Sélectionner les agents"
-                                options={controleurOptions}
-                                loading={isLoadingControleurs}
-                                optionFilterProp="label"
-                                showSearch
-                              />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                      </div>
-                    ))}
-                    <Button
-                      type="dashed"
-                      onClick={() => add({ jour: 0, heureDebut: undefined, heureFin: undefined, agents: [] })}
-                      icon={<PlusOutlined />}
-                      className="w-full"
-                    >
-                      Ajouter un créneau
-                    </Button>
-                  </>
-                )}
-              </Form.List>
-            </div>
-
             <Form.Item
               name="active"
               label="Statut"
               valuePropName="checked"
             >
-              <Switch 
-                checkedChildren="Actif" 
+              <Switch
+                checkedChildren="Actif"
                 unCheckedChildren="Inactif"
               />
             </Form.Item>
@@ -673,107 +542,20 @@ function RouteComponent() {
                 size="large"
                 showSearch
                 placeholder="Sélectionner un ticket"
-                options={tickets?.map(t => ({
+                options={tickets?.map((t: any) => ({
                   value: t._id,
                   label: `${t.nom} (${t.prix} FCFA)`
                 }))}
               />
             </Form.Item>
 
-            {/* Planning de contrôle */}
-            <div className="mb-4">
-              <Text strong className="block mb-2">
-                <ClockCircleOutlined className="mr-1" />
-                Planning de Contrôle
-              </Text>
-              <Text type="secondary" className="text-sm block mb-3">
-                Définissez les créneaux et les agents de contrôle pour ce service.
-              </Text>
-              <Form.List name="planning">
-                {(fields, { add, remove }) => (
-                  <>
-                    {fields.map(({ key, name, ...restField }) => (
-                      <div key={key} className="rounded-2xl border border-border bg-muted p-4 mb-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <Text strong>Créneau {name + 1}</Text>
-                          <Button
-                            type="text"
-                            icon={<MinusCircleOutlined />}
-                            danger
-                            onClick={() => remove(name)}
-                            size="small"
-                          />
-                        </div>
-                        <Row gutter={[12, 12]}>
-                          <Col xs={24} sm={8}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, 'jour']}
-                              label="Jour"
-                              rules={[{ required: true, message: 'Le jour est requis' }]}
-                            >
-                              <Select placeholder="Sélectionner un jour" options={DayOptions} />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={12} sm={8}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, 'heureDebut']}
-                              label="Heure début"
-                              rules={[{ required: true, message: 'L\'heure de début est requise' }]}
-                            >
-                              <TimePicker format="HH:mm" className="w-full" />
-                            </Form.Item>
-                          </Col>
-                          <Col xs={12} sm={8}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, 'heureFin']}
-                              label="Heure fin"
-                              rules={[{ required: true, message: 'L\'heure de fin est requise' }]}
-                            >
-                              <TimePicker format="HH:mm" className="w-full" />
-                            </Form.Item>
-                          </Col>
-                          <Col span={24}>
-                            <Form.Item
-                              {...restField}
-                              name={[name, 'agents']}
-                              label="Agents de contrôle"
-                            >
-                              <Select
-                                mode="multiple"
-                                placeholder="Sélectionner les agents"
-                                options={controleurOptions}
-                                loading={isLoadingControleurs}
-                                optionFilterProp="label"
-                                showSearch
-                              />
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                      </div>
-                    ))}
-                    <Button
-                      type="dashed"
-                      onClick={() => add({ jour: 0, heureDebut: undefined, heureFin: undefined, agents: [] })}
-                      icon={<PlusOutlined />}
-                      className="w-full"
-                    >
-                      Ajouter un créneau
-                    </Button>
-                  </>
-                )}
-              </Form.List>
-            </div>
-
             <Form.Item
               name="active"
               label="Statut"
               valuePropName="checked"
             >
-              <Switch 
-                checkedChildren="Actif" 
+              <Switch
+                checkedChildren="Actif"
                 unCheckedChildren="Inactif"
               />
             </Form.Item>

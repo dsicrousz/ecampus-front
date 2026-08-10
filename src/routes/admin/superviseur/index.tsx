@@ -1,56 +1,34 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { requireRole } from '@/lib/route-protection'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useSession } from '@/auth/auth-client'
 import { RestaurantService } from '@/services/restaurant.service'
-import { ServiceService } from '@/services/service.service'
-import { UserService } from '@/services/user.service'
+import { PlanningService } from '@/services/planning.service'
 import {
   Store,
   Clock,
   Pencil,
-  Plus,
-  MinusCircle,
   Coffee,
   Calendar,
   ChevronDown,
-  Loader2,
   Inbox,
 } from 'lucide-react'
 import { USER_ROLE } from '@/types/user.roles'
 import type { RestaurantServiceEntry } from '@/types/restaurant'
-import type { Service, PlanningControle } from '@/types/service'
+import type { Planning } from '@/types/planning'
 import { useState } from 'react'
 import PlatsTab from './PlatsTab'
 import MenusTab from './MenusTab'
+import { PlanningForm } from '@/components/planning-form'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet'
 import {
   Collapsible,
   CollapsibleTrigger,
   CollapsibleContent,
 } from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
-
-const DayOptions = [
-  { value: 0, label: 'Lundi' },
-  { value: 1, label: 'Mardi' },
-  { value: 2, label: 'Mercredi' },
-  { value: 3, label: 'Jeudi' },
-  { value: 4, label: 'Vendredi' },
-  { value: 5, label: 'Samedi' },
-  { value: 6, label: 'Dimanche' },
-]
 
 export const Route = createFileRoute('/admin/superviseur/')({
   beforeLoad: () => requireRole([USER_ROLE.SUPERVISEUR, USER_ROLE.SUPERADMIN, USER_ROLE.ADMIN]),
@@ -100,12 +78,12 @@ function EmptyState({ message }: { message: string }) {
 
 interface ServiceRowProps {
   record: RestaurantServiceEntry
+  planningCount: number
   onEditPlanning: (entry: RestaurantServiceEntry) => void
 }
 
-function ServiceRow({ record, onEditPlanning }: ServiceRowProps) {
+function ServiceRow({ record, planningCount, onEditPlanning }: ServiceRowProps) {
   const svc = typeof record.service === 'object' ? record.service : null
-  const count = svc?.planning?.length || 0
 
   return (
     <div className="grid grid-cols-1 gap-3 border-b border-border/40 px-4 py-3.5 transition-colors hover:bg-muted/30 sm:grid-cols-[1.5fr_1fr_1fr_0.5fr] sm:items-center sm:gap-4">
@@ -129,11 +107,11 @@ function ServiceRow({ record, onEditPlanning }: ServiceRowProps) {
         <Clock
           className={cn(
             'size-3.5 shrink-0',
-            count > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
+            planningCount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'
           )}
         />
-        <span className={count > 0 ? 'text-foreground' : 'text-muted-foreground'}>
-          {count > 0 ? `${count} créneau(x)` : 'Non configuré'}
+        <span className={planningCount > 0 ? 'text-foreground' : 'text-muted-foreground'}>
+          {planningCount > 0 ? `${planningCount} créneau(x)` : 'Non configuré'}
         </span>
       </div>
 
@@ -154,24 +132,17 @@ function ServiceRow({ record, onEditPlanning }: ServiceRowProps) {
 
 // ---- Planning form entry ------------------------------------------------------
 
-interface PlanningEntry {
-  jour: number
-  heureDebut: string
-  heureFin: string
-  agents: string[]
-}
-
 function RouteComponent() {
   const { data: sessionData } = useSession()
   const restaurantService = new RestaurantService()
-  const serviceService = new ServiceService()
-  const userService = new UserService()
-  const qc = useQueryClient()
 
   const [activeTab, setActiveTab] = useState<'services' | 'plats' | 'menus'>('services')
-  const [planningDrawerOpen, setPlanningDrawerOpen] = useState(false)
-  const [editingService, setEditingService] = useState<Service | null>(null)
-  const [planningEntries, setPlanningEntries] = useState<PlanningEntry[]>([])
+  const [planningFormOpen, setPlanningFormOpen] = useState(false)
+  const [editingEntry, setEditingEntry] = useState<{
+    restaurantId: string
+    serviceId: string
+    serviceNom: string
+  } | null>(null)
 
   const { data: restaurants, isLoading } = useQuery({
     queryKey: ['superviseur-restaurants', sessionData?.user?.id],
@@ -179,90 +150,13 @@ function RouteComponent() {
     enabled: !!sessionData?.user?.id,
   })
 
-  const { data: controleurs, isLoading: isLoadingControleurs } = useQuery({
-    queryKey: ['users', USER_ROLE.CONTROLEUR],
-    queryFn: () => userService.byRole(USER_ROLE.CONTROLEUR),
-  })
-
-  const controleurOptions = (controleurs || []).map((u: any) => ({
-    value: u._id,
-    label: `${u.name} (${u.email})`,
-  }))
-
-  const { mutate: updatePlanning, isPending: isUpdatingPlanning } = useMutation({
-    mutationFn: async (data: { serviceId: string; planning: PlanningControle[] }) => {
-      return serviceService.update(data.serviceId, { planning: data.planning })
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['superviseur-restaurants', sessionData?.user?.id] })
-      setPlanningDrawerOpen(false)
-      setPlanningEntries([])
-      setEditingService(null)
-    },
-    onError: () => {
-      // Error handled silently
-    },
-  })
-
-  const handleEditPlanning = (entry: RestaurantServiceEntry) => {
-    const svc = typeof entry.service === 'object' ? entry.service : null
-    if (!svc) return
-    setEditingService(svc)
-    const formData = (svc.planning || []).map((p: PlanningControle) => ({
-      jour: p.jour,
-      heureDebut: p.heureDebut || '',
-      heureFin: p.heureFin || '',
-      agents: p.agents || [],
-    }))
-    setPlanningEntries(formData)
-    setPlanningDrawerOpen(true)
-  }
-
-  const handleSubmitPlanning = () => {
-    if (!editingService) return
-    updatePlanning({
-      serviceId: editingService._id,
-      planning: planningEntries,
-    })
-  }
-
-  const closePlanningDrawer = () => {
-    setPlanningDrawerOpen(false)
-    setPlanningEntries([])
-    setEditingService(null)
-  }
-
-  // Planning entry helpers
-  const addPlanningEntry = () => {
-    setPlanningEntries((prev) => [
-      ...prev,
-      { jour: 0, heureDebut: '', heureFin: '', agents: [] },
-    ])
-  }
-
-  const removePlanningEntry = (index: number) => {
-    setPlanningEntries((prev) => prev.filter((_, i) => i !== index))
-  }
-
-  const updatePlanningEntry = (index: number, field: keyof PlanningEntry, value: any) => {
-    setPlanningEntries((prev) =>
-      prev.map((entry, i) => (i === index ? { ...entry, [field]: value } : entry))
-    )
-  }
-
-  const toggleAgent = (entryIndex: number, agentId: string) => {
-    setPlanningEntries((prev) =>
-      prev.map((entry, i) => {
-        if (i !== entryIndex) return entry
-        const has = entry.agents.includes(agentId)
-        return {
-          ...entry,
-          agents: has
-            ? entry.agents.filter((a) => a !== agentId)
-            : [...entry.agents, agentId],
-        }
-      })
-    )
+  const handleEditPlanning = (entry: {
+    restaurantId: string
+    serviceId: string
+    serviceNom: string
+  }) => {
+    setEditingEntry(entry)
+    setPlanningFormOpen(true)
   }
 
   if (isLoading) {
@@ -384,137 +278,19 @@ function RouteComponent() {
         </CardContent>
       </Card>
 
-      {/* Sheet: Planning editor */}
-      <Sheet open={planningDrawerOpen} onOpenChange={(open) => { if (!open) closePlanningDrawer() }}>
-        <SheetContent side="right" className="w-full sm:max-w-[600px] overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <Clock className="size-5" />
-              Planning de Contrôle — {editingService?.nom}
-            </SheetTitle>
-            <SheetDescription>
-              Définissez les créneaux et les agents de contrôle pour ce service.
-            </SheetDescription>
-          </SheetHeader>
-
-          <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-3">
-            {planningEntries.map((entry, index) => (
-              <div
-                key={index}
-                className="rounded-xl border border-border bg-muted/50 p-4"
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-foreground">
-                    Créneau {index + 1}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive hover:bg-destructive/10"
-                    onClick={() => removePlanningEntry(index)}
-                  >
-                    <MinusCircle className="size-4" />
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Jour</Label>
-                    <select
-                      className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] dark:bg-input/30"
-                      value={entry.jour}
-                      onChange={(e) => updatePlanningEntry(index, 'jour', Number(e.target.value))}
-                    >
-                      {DayOptions.map((d) => (
-                        <option key={d.value} value={d.value}>
-                          {d.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Heure début</Label>
-                    <Input
-                      type="time"
-                      value={entry.heureDebut}
-                      onChange={(e) => updatePlanningEntry(index, 'heureDebut', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Heure fin</Label>
-                    <Input
-                      type="time"
-                      value={entry.heureFin}
-                      onChange={(e) => updatePlanningEntry(index, 'heureFin', e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-3 space-y-1.5">
-                  <Label className="text-xs">Agents de contrôle</Label>
-                  {isLoadingControleurs ? (
-                    <div className="space-y-2">
-                      {Array.from({ length: 2 }).map((_, i) => (
-                        <Skeleton key={i} className="h-6 w-full" />
-                      ))}
-                    </div>
-                  ) : controleurOptions.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                      {controleurOptions.map((agent) => {
-                        const checked = entry.agents.includes(agent.value)
-                        return (
-                          <label
-                            key={agent.value}
-                            className={cn(
-                              'flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors',
-                              checked
-                                ? 'border-primary bg-primary/5 text-foreground'
-                                : 'border-border bg-background text-muted-foreground hover:bg-muted/50'
-                            )}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleAgent(index, agent.value)}
-                              className="size-3.5 rounded border-input accent-primary"
-                            />
-                            <span className="truncate">{agent.label}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Aucun contrôleur disponible</p>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            <Button
-              variant="outline"
-              className="w-full border-dashed"
-              onClick={addPlanningEntry}
-            >
-              <Plus className="size-4" />
-              Ajouter un créneau
-            </Button>
-          </div>
-
-          <div className="flex justify-end gap-2 border-t border-border p-4">
-            <Button variant="outline" onClick={closePlanningDrawer}>
-              Annuler
-            </Button>
-            <Button
-              onClick={handleSubmitPlanning}
-              disabled={isUpdatingPlanning}
-              className="bg-emerald-600 hover:bg-emerald-700"
-            >
-              {isUpdatingPlanning && <Loader2 className="size-4 animate-spin" />}
-              Enregistrer le Planning
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+      {/* Planning form (managed by dedicated component) */}
+      {editingEntry && (
+        <PlanningForm
+          restaurantId={editingEntry.restaurantId}
+          serviceId={editingEntry.serviceId}
+          serviceNom={editingEntry.serviceNom}
+          open={planningFormOpen}
+          onOpenChange={(open) => {
+            setPlanningFormOpen(open)
+            if (!open) setEditingEntry(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -524,12 +300,40 @@ function RouteComponent() {
 interface RestaurantCollapsibleProps {
   restaurant: any
   defaultOpen: boolean
-  onEditPlanning: (entry: RestaurantServiceEntry) => void
+  onEditPlanning: (entry: { restaurantId: string; serviceId: string; serviceNom: string }) => void
 }
 
 function RestaurantCollapsible({ restaurant, defaultOpen, onEditPlanning }: RestaurantCollapsibleProps) {
   const [open, setOpen] = useState(defaultOpen)
   const services = restaurant.services || []
+  const restaurantId = restaurant._id
+  const planningService = new PlanningService()
+
+  // Fetch les plannings de ce restaurant (service populé)
+  const { data: plannings } = useQuery<Planning[]>({
+    queryKey: ['planning', 'restaurant', restaurantId],
+    queryFn: () => planningService.findByRestaurant(restaurantId),
+    enabled: !!restaurantId,
+  })
+
+  // Map serviceId → nombre de créneaux
+  const planningCountByService = (() => {
+    const map: Record<string, number> = {}
+    for (const p of plannings || []) {
+      map[p.service._id] = (p.creneaux || []).length
+    }
+    return map
+  })()
+
+  const handleEdit = (entry: RestaurantServiceEntry) => {
+    const svc = typeof entry.service === 'object' ? entry.service : null
+    if (!svc) return
+    onEditPlanning({
+      restaurantId,
+      serviceId: svc._id,
+      serviceNom: svc.nom,
+    })
+  }
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -569,11 +373,13 @@ function RestaurantCollapsible({ restaurant, defaultOpen, onEditPlanning }: Rest
                 {services.map((entry: RestaurantServiceEntry) => {
                   const svc = typeof entry.service === 'object' ? entry.service : entry.service
                   const key = typeof svc === 'object' ? svc._id : svc
+                  const serviceId = typeof svc === 'object' ? svc._id : svc
                   return (
                     <ServiceRow
                       key={key}
                       record={entry}
-                      onEditPlanning={onEditPlanning}
+                      planningCount={planningCountByService[serviceId] || 0}
+                      onEditPlanning={handleEdit}
                     />
                   )
                 })}

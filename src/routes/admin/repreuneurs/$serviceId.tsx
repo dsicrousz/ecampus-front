@@ -56,10 +56,11 @@ function RouteComponent() {
   })
 
   // Récupérer toutes les décades
-  const { data: decades, isLoading: isLoadingDecades } = useQuery({
+  const { data: decadesRaw, isLoading: isLoadingDecades } = useQuery<any>({
     queryKey: [QUERY_KEYS.DECADES],
     queryFn: () => decadeService.getAll(),
   })
+  const decades = Array.isArray(decadesRaw) ? decadesRaw : (decadesRaw?.data ?? [])
 
   // Extraire les IDs des services du restaurant
   const serviceIds = (service?.services || [])
@@ -320,7 +321,7 @@ function RouteComponent() {
           <Space>
             <FileTextOutlined style={{ fontSize: 20 }} />
             <span>
-              Opérations - {decades?.find(d => d._id === selectedDecade)?.nom}
+              Opérations - {decades?.find((d: any) => d._id === selectedDecade)?.nom}
             </span>
           </Space>
         }
